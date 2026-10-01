@@ -89,6 +89,44 @@ async def minute_power(session: AsyncSession, hid: uuid.UUID, start: datetime, e
     return out
 
 
+async def runs(session: AsyncSession, hid: uuid.UUID, start: datetime, end: datetime,
+               split_days: bool = False) -> dict[str, list[Run]]:
+    """Runs of every appliance in the window, found in SQL so only the runs leave the database.
+
+    Same rule as `find_runs`: minutes above `ON_W`, a gap of more than `MAX_GAP_MIN` minutes
+    starts a new run, runs shorter than `MIN_RUN_MIN` are dropped. `split_days` also ends a run at
+    midnight (per-day figures).
+    """
+    day = "date_trunc('day', r.time)" if split_days else "0"
+    q = text(
+        f"""
+        WITH on_pts AS (
+            SELECT d.name AS name, r.time AS t, r.power_w AS w, {day} AS day
+            FROM power_readings r JOIN devices d ON d.id = r.device_id
+            WHERE d.parent_id = :hid AND d.kind::text = 'appliance' AND d.name <> 'Other'
+              AND r.time >= :start AND r.time < :end AND r.power_w > :on_w
+        ), marked AS (
+            SELECT *, CASE WHEN t - lag(t) OVER (PARTITION BY name, day ORDER BY t)
+                                > make_interval(mins => CAST(:gap AS int)) THEN 1 ELSE 0 END AS brk
+            FROM on_pts
+        ), grp AS (
+            SELECT *, sum(brk) OVER (PARTITION BY name, day ORDER BY t) AS g FROM marked
+        )
+        SELECT name, min(t) AS first, max(t) AS last, sum(w) / 60.0 AS energy_wh, max(w) AS peak_w
+        FROM grp GROUP BY name, day, g
+        HAVING round(extract(epoch FROM max(t) - min(t)) / 60) + 1 >= :min_run
+        ORDER BY name, min(t)
+        """
+    )
+    params = {"hid": hid, "start": start, "end": end, "on_w": ON_W, "gap": MAX_GAP_MIN + 1,
+              "min_run": MIN_RUN_MIN}
+    out: dict[str, list[Run]] = defaultdict(list)
+    for r in (await session.execute(q, params)).mappings():
+        out[r["name"]].append(Run(r["first"], r["last"] + timedelta(minutes=1),
+                                  float(r["energy_wh"]), float(r["peak_w"])))
+    return out
+
+
 # ------------------------------------------------------------------------------------ alerts
 @dataclass(frozen=True)
 class Alert:
@@ -131,7 +169,8 @@ def pick(found: list[Alert], limit: int) -> list[Alert]:
 
 
 async def alerts(session: AsyncSession, hid: uuid.UUID, asof: datetime, plan: Plan,
-                 names: dict[str, str], limit: int = MAX_ALERTS) -> list[Alert]:
+                 names: dict[str, str], limit: int = MAX_ALERTS,
+                 mute: frozenset[str] = frozenset()) -> list[Alert]:
     day = datetime(asof.year, asof.month, asof.day, tzinfo=UTC)
     prev_day, prev_end = day - timedelta(days=1), asof - timedelta(days=1)
     out: list[Alert] = []
@@ -203,4 +242,4 @@ async def alerts(session: AsyncSession, hid: uuid.UUID, asof: datetime, plan: Pl
                     "big_share", "info", asof,
                     f"{names.get(key, key)} chiếm {pct}% điện hôm nay "
                     f"({_vn(wh[key], 1)} kWh).", key))
-    return pick(out, limit)
+    return pick([a for a in out if a.code not in mute], limit)

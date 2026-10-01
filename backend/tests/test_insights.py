@@ -122,3 +122,39 @@ async def test_alerts_limit_and_importance(client):
     assert top[0]["code"] == five[0]["code"]
     # a summary of the day or month has no clock time of its own
     assert {a["code"]: a["scope"] for a in five}.get("month_forecast") == "month"
+
+
+@pytestmark_db
+async def test_muted_codes_never_appear_and_the_limit_is_still_filled(client):
+    loud = (await get(client, "alerts", asof=NOW, limit=10)).json()["items"]
+    codes = {a["code"] for a in loud}
+    assert len(codes) >= 3
+    muted = sorted(codes)[:2]
+    r = await client.get("/api/v1/demo/alerts", params={"asof": NOW, "limit": 10, "mute": muted})
+    items = r.json()["items"]
+    assert not {a["code"] for a in items} & set(muted)
+    assert len(items) == len(loud) - sum(1 for a in loud if a["code"] in muted)
+
+
+@pytestmark_db
+async def test_sql_runs_equal_the_runs_found_in_python():
+    """`runs()` (SQL, fast) and `find_runs(minute_power())` (Python, readable) must agree."""
+    from datetime import UTC
+
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.services import demo as demo_svc
+    from app.services import insights as svc
+
+    async with SessionLocal() as session:
+        hid = await demo_svc.household_id(session, settings.DEMO_HOUSEHOLD)
+        if hid is None:
+            pytest.skip("demo household not imported in this database")
+        start, end = datetime(2023, 8, 1, tzinfo=UTC), datetime(2023, 8, 16, tzinfo=UTC)
+        fast = await svc.runs(session, hid, start, end)
+        slow = {k: svc.find_runs(p) for k, p in (await svc.minute_power(session, hid, start, end)).items()}
+    for key, expected in slow.items():
+        got = fast.get(key, [])
+        assert [(r.start, r.end, r.minutes) for r in got] == [(r.start, r.end, r.minutes) for r in expected], key
+        assert sum(r.energy_wh for r in got) == pytest.approx(sum(r.energy_wh for r in expected))
+        assert [r.peak_w for r in got] == [r.peak_w for r in expected]

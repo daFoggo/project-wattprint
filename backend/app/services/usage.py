@@ -157,10 +157,23 @@ class Priced:
     rows: list
 
 
-async def priced(session: AsyncSession, hid: uuid.UUID, p: Period, plan: Plan) -> Priced:
-    rows = await month_rows(session, hid, p)
+async def priced(session: AsyncSession, hid: uuid.UUID, p: Period, plan: Plan,
+                 rows=None) -> Priced:
+    """`rows` (from `month_rows`) skip the query when the caller has them already."""
+    if rows is None:
+        rows = await month_rows(session, hid, p)
     return Priced(p, price_buckets(rows, p, plan),
-                  await billing_svc.window_cost(session, hid, p.start, p.until, plan), rows)
+                  await billing_svc.window_cost(session, hid, p.start, p.until, plan, rows), rows)
+
+
+def energy_rows(rows, p: Period) -> list[dict]:
+    """Energy (Wh) per device over `p` from half-hour rows: same shape as `demo_svc.energy`."""
+    acc: dict[tuple[str, str], float] = {}
+    for r in rows:
+        if p.start <= r["slot"].replace(tzinfo=UTC) < p.until:
+            key = (r["name"], r["kind"])
+            acc[key] = acc.get(key, 0.0) + r["wh"]
+    return [{"name": n, "kind": k, "energy_wh": wh} for (n, k), wh in acc.items()]
 
 
 def share_out(total: int, weights: list[float]) -> list[int]:
@@ -205,15 +218,16 @@ def _hm(minutes: int) -> str:
 
 
 async def insight(session: AsyncSession, hid: uuid.UUID, cur: Period, prev: Period,
-                  names: dict[str, str], offset: int) -> dict:
+                  names: dict[str, str], offset: int, rows_cur=None, rows_prev=None) -> dict:
     """One question and a sentence about what changed, from the appliances' own energy."""
     now_label, before_label = _label(cur.range, offset, False), _label(cur.range, offset, True)
 
-    async def by_appliance(p: Period) -> dict[str, float]:
-        rows = await demo_svc.energy(session, hid, p.start, p.until)
+    async def by_appliance(p: Period, have=None) -> dict[str, float]:
+        rows = energy_rows(have, p) if have is not None \
+            else await demo_svc.energy(session, hid, p.start, p.until)
         return {r["name"]: r["energy_wh"] / 1000 for r in rows if r["kind"] == "appliance"}
 
-    now, before = await by_appliance(cur), await by_appliance(prev)
+    now, before = await by_appliance(cur, rows_cur), await by_appliance(prev, rows_prev)
     total_now, total_before = sum(now.values()), sum(before.values())
     if not now or total_now <= 0:
         return {"question": f"{now_label.capitalize()} tôi dùng điện thế nào?",
@@ -236,8 +250,8 @@ async def insight(session: AsyncSession, hid: uuid.UUID, cur: Period, prev: Peri
     # how long it ran, from its own minutes
     runs = {}
     for label, p in (("now", cur), ("before", prev)):
-        pts = (await insights_svc.minute_power(session, hid, p.start, p.until)).get(top, [])
-        runs[label] = sum(r.minutes for r in insights_svc.find_runs(pts))
+        found = (await insights_svc.runs(session, hid, p.start, p.until)).get(top, [])
+        runs[label] = sum(r.minutes for r in found)
     if runs["before"] > 0 and runs["now"] > 0:
         text += f", thời gian chạy {_hm(runs['now'])} so với {_hm(runs['before'])}"
     text += "."

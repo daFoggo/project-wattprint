@@ -4,6 +4,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 
 from app.api.v1.router import api_router
 from app.core import openapi, problems
+from app.core.cache import DemoCacheMiddleware
 from app.core.config import settings
 
 # this Swagger UI release renders OpenAPI 3.2; pinned so the docs keep matching the document
@@ -20,6 +21,7 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+app.add_middleware(DemoCacheMiddleware, prefix=settings.API_V1_PREFIX)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 problems.install(app)
 openapi.install(app)

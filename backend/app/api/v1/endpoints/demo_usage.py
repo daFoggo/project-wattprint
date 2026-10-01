@@ -2,7 +2,7 @@
 
 Everything is derived from the imported series and the billing engine; nothing is stored.
 """
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -15,7 +15,6 @@ from app.billing.tariffs import Plan
 from app.core.database import get_session
 from app.schemas import usage as s
 from app.services import billing as billing_svc
-from app.services import demo as demo_svc
 from app.services import insights as insights_svc
 from app.services import usage as svc
 
@@ -65,12 +64,15 @@ async def get_usage(
     hid = await _hid(session)
     names = _names()
     now = await svc.priced(session, hid, cur, plan)
-    before = await svc.priced(session, hid, prev, plan)
 
-    # the previous period's buckets are shown whole, for the comparison line
+    # the previous period's buckets are shown whole, for the comparison line; the rows up to
+    # the cut are the same rows, so one query serves both
     prev_whole = svc.Period(prev.range, prev.start, prev.end, prev.end)
-    prev_full = svc.price_buckets(await svc.month_rows(session, hid, prev_whole), prev_whole,
-                                  plan)
+    prev_rows = await svc.month_rows(session, hid, prev_whole)
+    before = await svc.priced(
+        session, hid, prev, plan,
+        [r for r in prev_rows if r["slot"].replace(tzinfo=UTC) < prev.until])
+    prev_full = svc.price_buckets(prev_rows, prev_whole, plan)
 
     costs = svc.share_out(now.cost.money.total, [b.subtotal for b in now.buckets])
     # the previous period, whole: its bill is the sum of its buckets' subtotals plus VAT
@@ -88,7 +90,7 @@ async def get_usage(
                                 cost_vnd=c)
                       for p, c in zip(b.parts.values(), seg_costs, strict=True)]))
 
-    t = _totals(await demo_svc.energy(session, hid, cur.start, cur.until), names)
+    t = _totals(svc.energy_rows(now.rows, cur), names)
     for item in t["items"]:
         item["cost_vnd"] = now.cost.per_device.get(item["key"], 0)
 
@@ -107,7 +109,8 @@ async def get_usage(
         cost_vnd=now.cost.money.total, previous_kwh=round(before_kwh, 3),
         previous_cost_vnd=before.cost.money.total, delta_pct=_pct(kwh, before_kwh), forecast=fc,
         buckets=buckets, devices=t["items"],
-        insight=s.Insight(**await svc.insight(session, hid, cur, prev, names, offset)))
+        insight=s.Insight(**await svc.insight(session, hid, cur, prev, names, offset,
+                                              now.rows, before.rows)))
 
 
 @router.get(
@@ -144,8 +147,7 @@ async def get_device_usage(
 
     runs, recent = None, []
     if key != "Other":
-        found = insights_svc.find_runs(
-            (await insights_svc.minute_power(session, hid, cur.start, cur.until)).get(key, []))
+        found = (await insights_svc.runs(session, hid, cur.start, cur.until)).get(key, [])
         minutes = sum(r.minutes for r in found)
         on_kwh = sum(r.energy_wh for r in found) / 1000
         runs = s.DeviceRuns(

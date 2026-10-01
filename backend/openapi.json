@@ -1709,7 +1709,7 @@
           "demo-insights"
         ],
         "summary": "Alerts for the day so far",
-        "description": "Short Vietnamese sentences worth the customer's attention at `asof`: the day against the same hours yesterday, how close the month is to the next tier (or the peak share of a time-of-use customer), the month forecast, a long air-conditioner run and an appliance that takes a large share of the day. Most important first, at most `limit` (default 3), never two about the same appliance. Without `asof`: the end of the recorded period.",
+        "description": "Short Vietnamese sentences worth the customer's attention at `asof`: the day against the same hours yesterday, how close the month is to the next tier (or the peak share of a time-of-use customer), the month forecast, a long air-conditioner run and an appliance that takes a large share of the day. Most important first, at most `limit` (default 3), never two about the same appliance. `mute` removes alert codes before the ranking, so the card stays full. Without `asof`: the end of the recorded period.",
         "operationId": "listDemoAlerts",
         "parameters": [
           {
@@ -1744,6 +1744,30 @@
               "title": "Limit"
             },
             "description": "Most alerts to return"
+          },
+          {
+            "name": "mute",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "day_vs_yesterday",
+                  "tier_approaching",
+                  "tier_headroom",
+                  "tou_peak_share",
+                  "month_forecast",
+                  "long_run",
+                  "big_share"
+                ],
+                "type": "string"
+              },
+              "description": "Alert codes the customer switched off (repeat the parameter); the `limit` is filled from the rest",
+              "default": [],
+              "title": "Mute"
+            },
+            "description": "Alert codes the customer switched off (repeat the parameter); the `limit` is filled from the rest"
           },
           {
             "name": "customer",
@@ -2178,6 +2202,682 @@
           }
         }
       }
+    },
+    "/api/v1/demo/copilot/suggestions": {
+      "get": {
+        "tags": [
+          "demo-copilot"
+        ],
+        "summary": "Questions the copilot can answer",
+        "description": "Chips for the chat, worded for the customer's tariff. Each `intent` can be passed to `POST /demo/copilot/ask`.",
+        "operationId": "listDemoCopilotSuggestions",
+        "parameters": [
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\". Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\". Default: the end of the recorded period"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsOut"
+                }
+              }
+            },
+            "summary": "Suggestions"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/copilot/ask": {
+      "post": {
+        "tags": [
+          "demo-copilot"
+        ],
+        "summary": "Answer a question from the household's data",
+        "description": "Give an `intent` (a suggestion) or a free-text `question`, matched to an intent by keywords. The text is built from the figures in `facts`, which come from the same queries as the usage, billing and insights endpoints. A question the copilot cannot answer from the data gets `intent: unknown` and a list of what can be asked. There is no language model and no weather.",
+        "operationId": "askDemoCopilot",
+        "parameters": [
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\". Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\". Default: the end of the recorded period"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Answer"
+                }
+              }
+            },
+            "summary": "Answer"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/experiments/templates": {
+      "get": {
+        "tags": [
+          "demo-experiments"
+        ],
+        "summary": "Habit changes worth trying",
+        "description": "One template per appliance whose use can be cut: the appliance's typical day (7 days before `asof`, 28 for the washing machine), the slider range, and the kWh and VND a day each unit of the slider saves. The saving is the appliance's own measured power (or energy per run), not a percentage rule. `available: false` when it barely ran.",
+        "operationId": "listDemoExperimentTemplates",
+        "parameters": [
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\". Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\". Default: the end of the recorded period"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplatesOut"
+                }
+              }
+            },
+            "summary": "Templates"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/experiments/progress": {
+      "get": {
+        "tags": [
+          "demo-experiments"
+        ],
+        "summary": "How an experiment is going",
+        "description": "Each day from `since` to the day of `asof`: kWh, minutes ON and runs of the appliance, against its baseline from the days before `since`. The saving counts complete days only.",
+        "operationId": "getDemoExperimentProgress",
+        "parameters": [
+          {
+            "name": "appliance",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "WashingMachine"
+              ],
+              "type": "string",
+              "title": "Appliance"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "First day of the experiment, `YYYY-MM-DD`",
+              "title": "Since"
+            },
+            "description": "First day of the experiment, `YYYY-MM-DD`"
+          },
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\". Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\". Default: the end of the recorded period"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressOut"
+                }
+              }
+            },
+            "summary": "Progress"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/experiments/proposals": {
+      "get": {
+        "tags": [
+          "demo-experiments"
+        ],
+        "summary": "Experiments proposed for this household",
+        "description": "What to try, from the household's own data: one proposal per appliance that ran enough to cut, and `scenario` proposals that run several together (a balanced and a maximum one). Each lists its actions with the slider range, the reason in the household's figures and the saving per month. Biggest saving first. Empty when no appliance ran enough.",
+        "operationId": "listDemoExperimentProposals",
+        "parameters": [
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\". Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\". Default: the end of the recorded period"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalsOut"
+                }
+              }
+            },
+            "summary": "Proposals"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2286,6 +2986,89 @@
           "items"
         ],
         "title": "AlertsOut"
+      },
+      "Answer": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof"
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "bill_change",
+              "tier_budget",
+              "standby",
+              "top_appliance",
+              "ac_runtime",
+              "heater_timing",
+              "fridge_cycles",
+              "forecast",
+              "saving_plan",
+              "month_compare",
+              "unknown"
+            ],
+            "title": "Intent",
+            "description": "`unknown` when the question matched nothing the copilot can answer from the data"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "The question as understood (a suggestion's text when `intent` was given)"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period",
+            "description": "What the answer covers",
+            "examples": [
+              "THÁNG 8"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Answer in Vietnamese, built from the figures in `facts`"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/app__schemas__copilot__Action"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "asof",
+          "intent",
+          "question",
+          "category",
+          "period",
+          "text",
+          "facts"
+        ],
+        "title": "Answer"
       },
       "Appliance": {
         "properties": {
@@ -2597,6 +3380,50 @@
         ],
         "title": "ApplianceSeries"
       },
+      "AskIn": {
+        "properties": {
+          "question": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question",
+            "description": "Free text; matched to an intent by keywords. Ignored when `intent` is given"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "bill_change",
+                  "tier_budget",
+                  "standby",
+                  "top_appliance",
+                  "ac_runtime",
+                  "heater_timing",
+                  "fridge_cycles",
+                  "forecast",
+                  "saving_plan",
+                  "month_compare",
+                  "unknown"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent",
+            "description": "Ask a suggestion directly"
+          }
+        },
+        "type": "object",
+        "title": "AskIn"
+      },
       "BandLine": {
         "properties": {
           "index": {
@@ -2656,6 +3483,61 @@
           "cost_vnd"
         ],
         "title": "BandLine"
+      },
+      "Baseline": {
+        "properties": {
+          "lookback_days": {
+            "type": "integer",
+            "title": "Lookback Days",
+            "description": "Days before `asof` the typical values come from"
+          },
+          "kwh_per_day": {
+            "type": "number",
+            "title": "Kwh Per Day"
+          },
+          "minutes_per_day": {
+            "type": "number",
+            "title": "Minutes Per Day",
+            "description": "Minutes the appliance is ON, per day"
+          },
+          "runs_per_day": {
+            "type": "number",
+            "title": "Runs Per Day"
+          },
+          "avg_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Power W",
+            "description": "Power while ON; `null` if it never ran"
+          },
+          "kwh_per_run": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kwh Per Run"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lookback_days",
+          "kwh_per_day",
+          "minutes_per_day",
+          "runs_per_day",
+          "avg_power_w",
+          "kwh_per_run"
+        ],
+        "title": "Baseline"
       },
       "Bill": {
         "properties": {
@@ -3057,6 +3939,41 @@
           "items"
         ],
         "title": "DailyOut"
+      },
+      "Day": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "description": "False for the day `asof` falls in, which is still going"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "kwh",
+          "minutes",
+          "runs",
+          "complete"
+        ],
+        "title": "Day"
       },
       "DayEnergy": {
         "properties": {
@@ -3618,6 +4535,30 @@
         ],
         "title": "EvaluationOut"
       },
+      "Fact": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "examples": [
+              "Điều hoà"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "examples": [
+              "+208,6 kWh"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "Fact"
+      },
       "Finding": {
         "properties": {
           "appliance": {
@@ -3817,6 +4758,31 @@
           "appliances"
         ],
         "title": "HouseholdRead"
+      },
+      "Impact": {
+        "properties": {
+          "kwh_per_day": {
+            "type": "number",
+            "title": "Kwh Per Day"
+          },
+          "kwh_per_month": {
+            "type": "number",
+            "title": "Kwh Per Month",
+            "description": "30 days"
+          },
+          "vnd_per_month": {
+            "type": "integer",
+            "title": "Vnd Per Month",
+            "description": "`kwh_per_month` at `vnd_per_kwh`, VAT included"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kwh_per_day",
+          "kwh_per_month",
+          "vnd_per_month"
+        ],
+        "title": "Impact"
       },
       "ImportResult": {
         "properties": {
@@ -4307,6 +5273,185 @@
         "title": "Problem",
         "type": "object"
       },
+      "ProgressOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "since": {
+            "type": "string",
+            "format": "date",
+            "title": "Since"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/Baseline"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/Day"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "From `since` to the day of `asof`"
+          },
+          "saved_kwh": {
+            "type": "number",
+            "title": "Saved Kwh",
+            "description": "Baseline minus measured, over complete days; may be negative"
+          },
+          "saved_vnd": {
+            "type": "integer",
+            "title": "Saved Vnd",
+            "description": "`saved_kwh` at the template's price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "appliance",
+          "since",
+          "asof",
+          "baseline",
+          "days",
+          "saved_kwh",
+          "saved_vnd"
+        ],
+        "title": "ProgressOut"
+      },
+      "Proposal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "single-AC",
+              "scenario-balanced"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "single",
+              "scenario"
+            ],
+            "title": "Kind",
+            "description": "`scenario` combines actions on several appliances run together"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "What the customer would do"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why it is proposed: the household's own figures"
+          },
+          "appliances": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "WashingMachine"
+              ]
+            },
+            "type": "array",
+            "title": "Appliances"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__experiments__Action"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/Impact"
+          },
+          "featured": {
+            "type": "boolean",
+            "title": "Featured",
+            "description": "The one to try first: the balanced scenario when there is one, else the biggest saving. Always the first item",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "summary",
+          "reason",
+          "appliances",
+          "actions",
+          "impact"
+        ],
+        "title": "Proposal"
+      },
+      "ProposalsOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof"
+          },
+          "vnd_per_kwh": {
+            "type": "integer",
+            "title": "Vnd Per Kwh"
+          },
+          "baselines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Baseline"
+            },
+            "type": "object",
+            "title": "Baselines",
+            "description": "Typical day of each appliance, by key"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Biggest saving first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "asof",
+          "vnd_per_kwh",
+          "baselines",
+          "items"
+        ],
+        "title": "ProposalsOut"
+      },
       "QuarterF1": {
         "properties": {
           "appliance": {
@@ -4591,6 +5736,104 @@
         ],
         "title": "SeriesOut"
       },
+      "Slider": {
+        "properties": {
+          "min": {
+            "type": "integer",
+            "title": "Min"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "default": {
+            "type": "integer",
+            "title": "Default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "step",
+          "default"
+        ],
+        "title": "Slider"
+      },
+      "Suggestion": {
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": [
+              "bill_change",
+              "tier_budget",
+              "standby",
+              "top_appliance",
+              "ac_runtime",
+              "heater_timing",
+              "fridge_cycles",
+              "forecast",
+              "saving_plan",
+              "month_compare",
+              "unknown"
+            ],
+            "title": "Intent"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "Question in Vietnamese, as a chip"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Short upper-case topic",
+            "examples": [
+              "HÓA ĐƠN"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "intent",
+          "question",
+          "category"
+        ],
+        "title": "Suggestion"
+      },
+      "SuggestionsOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Most useful first, for this customer's tariff"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "asof",
+          "items"
+        ],
+        "title": "SuggestionsOut"
+      },
       "TariffInfo": {
         "properties": {
           "id": {
@@ -4636,6 +5879,115 @@
           "vat_rate"
         ],
         "title": "TariffInfo"
+      },
+      "Template": {
+        "properties": {
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name (Vietnamese)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "What the customer would do"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "knob": {
+            "type": "string",
+            "enum": [
+              "minutes_per_day",
+              "runs_per_week"
+            ],
+            "title": "Knob",
+            "description": "What the slider changes"
+          },
+          "unit_label": {
+            "type": "string",
+            "title": "Unit Label",
+            "examples": [
+              "phút/ngày",
+              "lần/tuần"
+            ]
+          },
+          "slider": {
+            "$ref": "#/components/schemas/Slider",
+            "description": "How much to cut, in `unit_label`"
+          },
+          "kwh_per_day_per_unit": {
+            "type": "number",
+            "title": "Kwh Per Day Per Unit",
+            "description": "kWh a day saved per unit of the slider: the appliance's own power for minutes, its energy per run (spread over 7 days) for runs"
+          },
+          "vnd_per_kwh": {
+            "type": "integer",
+            "title": "Vnd Per Kwh",
+            "description": "Price of the next kWh with VAT (current band, or the normal-hours price on time of use)"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/Baseline"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "False when the appliance barely ran: nothing to cut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appliance",
+          "name",
+          "title",
+          "description",
+          "knob",
+          "unit_label",
+          "slider",
+          "kwh_per_day_per_unit",
+          "vnd_per_kwh",
+          "baseline",
+          "available"
+        ],
+        "title": "Template"
+      },
+      "TemplatesOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "asof",
+          "items"
+        ],
+        "title": "TemplatesOut"
       },
       "TierDay": {
         "properties": {
@@ -5162,6 +6514,99 @@
         ],
         "title": "Forecast"
       },
+      "app__schemas__copilot__Action": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "experiment",
+            "title": "Kind",
+            "description": "What the app can offer next"
+          },
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Appliance",
+            "description": "Appliance the experiment would be about"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Button text (Vietnamese)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "appliance",
+          "label"
+        ],
+        "title": "Action"
+      },
+      "app__schemas__experiments__Action": {
+        "properties": {
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name (Vietnamese)"
+          },
+          "knob": {
+            "type": "string",
+            "enum": [
+              "minutes_per_day",
+              "runs_per_week"
+            ],
+            "title": "Knob"
+          },
+          "unit_label": {
+            "type": "string",
+            "title": "Unit Label"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount",
+            "description": "How much to cut, in `unit_label`"
+          },
+          "slider": {
+            "$ref": "#/components/schemas/Slider"
+          },
+          "kwh_per_day_per_unit": {
+            "type": "number",
+            "title": "Kwh Per Day Per Unit"
+          },
+          "saves_kwh_per_day": {
+            "type": "number",
+            "title": "Saves Kwh Per Day",
+            "description": "`amount` x `kwh_per_day_per_unit`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appliance",
+          "name",
+          "knob",
+          "unit_label",
+          "amount",
+          "slider",
+          "kwh_per_day_per_unit",
+          "saves_kwh_per_day"
+        ],
+        "title": "Action"
+      },
       "app__schemas__usage__Forecast": {
         "properties": {
           "kwh": {
@@ -5224,6 +6669,20 @@
       "parent": "demo",
       "kind": "nav",
       "summary": "Insights"
+    },
+    {
+      "name": "demo-copilot",
+      "description": "Suggested questions and answers computed from the household's series.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Copilot"
+    },
+    {
+      "name": "demo-experiments",
+      "description": "What a habit change is worth for an appliance, and how a started one is going.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Experiments"
     },
     {
       "name": "demo-evaluation",

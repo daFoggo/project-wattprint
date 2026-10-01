@@ -52,8 +52,7 @@ async def get_timeline(
     hid = await _hid(session)
     names = _names()
     items = []
-    for key, pts in (await svc.minute_power(session, hid, start, until)).items():
-        runs = svc.find_runs(pts)
+    for key, runs in (await svc.runs(session, hid, start, until)).items():
         if not runs:
             continue
         items.append(s.ApplianceRuns(
@@ -76,18 +75,22 @@ async def get_timeline(
                 "peak share of a time-of-use customer), the month forecast, a long air-conditioner "
                 "run and an appliance that takes a large share of the day. Most important first, at "
                 "most `limit` (default 3), never two about the same appliance. "
+                "`mute` removes alert codes before the ranking, so the card stays full. "
                 "Without `asof`: the end of the recorded period.",
     responses={200: {"summary": "Alerts"}, 404: NOT_READY, 422: INVALID},
 )
 async def list_alerts(
     asof: datetime | None = Query(None, description="Day so far is computed up to here"),
     limit: int = Query(svc.MAX_ALERTS, ge=1, le=10, description="Most alerts to return"),
+    mute: list[s.AlertCode] = Query(
+        [], description="Alert codes the customer switched off (repeat the parameter); the "
+                        "`limit` is filled from the rest"),
     plan: Plan = Depends(plan_params),
     session: AsyncSession = Depends(get_session),
 ):
     asof = _utc(asof) if asof else _period_end()
     hid = await _hid(session)
-    found = await svc.alerts(session, hid, asof, plan, _names(), limit)
+    found = await svc.alerts(session, hid, asof, plan, _names(), limit, frozenset(mute))
     return s.AlertsOut(household_id=hid, asof=asof, items=[
         s.AlertOut(code=a.code, tone=a.tone, at=a.at, text=a.text, scope=a.scope,
                    appliance=a.appliance)

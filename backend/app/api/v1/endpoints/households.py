@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.readings import Bucket
+from app.core import cache
 from app.core.config import settings
 from app.core.database import get_session
 from app.models import Device, DeviceKind
@@ -45,6 +46,7 @@ async def import_disaggregation(
 ):
     try:
         house, counts = await svc.import_csv(session, household, file.file)
+        cache.clear()  # the demo endpoints derive everything from what was imported
     except (ValueError, KeyError) as e:
         await session.rollback()
         raise HTTPException(422, str(e)) from e

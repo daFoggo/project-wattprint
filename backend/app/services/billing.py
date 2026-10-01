@@ -76,14 +76,19 @@ class WindowCost:
 
 
 async def window_cost(session: AsyncSession, hid: uuid.UUID, start: datetime, end: datetime,
-                      plan: Plan) -> WindowCost:
+                      plan: Plan, rows=None) -> WindowCost:
     """What the window costs the customer.
 
     6 tiers: the window's kWh are priced after whatever the same month already used (so a day in
     the middle of the month sits in its own band); the bill is shared among appliances in
     proportion to their kWh. TOU: each appliance's kWh are priced by when it ran, and the bill
     is shared in proportion to those costs, so a water heater that runs at peak costs more.
+
+    `rows` (half-hour rows from `slot_wh`, starting at or before the first day of the window's
+    month) save the database round trips when the caller already has them.
     """
+    if rows is not None:
+        return _window_cost_from_rows(rows, start, end, plan)
     if plan.scheme == "tier":
         rows = await monthly_wh(session, hid, start, end)
         by_month: dict[datetime, float] = defaultdict(float)
@@ -106,6 +111,35 @@ async def window_cost(session: AsyncSession, hid: uuid.UUID, start: datetime, en
     weight: dict[str, float] = {}
     for name in {r["name"] for r in rows if r["kind"] != "aggregate"}:
         own = [(r["slot"], r["wh"] / 1000) for r in rows if r["name"] == name]
+        weight[name] = engine.tou_bill(own, plan.tou, plan.schedule).money.subtotal
+    return WindowCost(bill.money, sum(bill.kwh.values()), engine.allocate(bill.money.total, weight))
+
+
+def _window_cost_from_rows(rows, start: datetime, end: datetime, plan: Plan) -> WindowCost:
+    """`window_cost` from half-hour rows that cover the month up to `end`; no queries."""
+    inside = [r for r in rows if start <= r["slot"].replace(tzinfo=UTC) < end]
+    if plan.scheme == "tier":
+        by_month: dict[datetime, float] = defaultdict(float)
+        device_kwh: dict[str, float] = defaultdict(float)
+        for r in inside:
+            if r["kind"] == "aggregate":
+                by_month[datetime(r["slot"].year, r["slot"].month, 1, tzinfo=UTC)] += r["wh"] / 1000
+            else:
+                device_kwh[r["name"]] += r["wh"] / 1000
+        first = month_start(start)
+        before = sum(r["wh"] for r in rows if r["kind"] == "aggregate"
+                     and first <= r["slot"].replace(tzinfo=UTC) < start) / 1000
+        total = Money(0, 0, 0)
+        for m in sorted(by_month):
+            total = engine.add(total, engine.tier_bill(before if m == first else 0.0,
+                                                       by_month[m], plan.tier).money)
+        return WindowCost(total, sum(by_month.values()), engine.allocate(total.total, device_kwh))
+
+    agg = [(r["slot"], r["wh"] / 1000) for r in inside if r["kind"] == "aggregate"]
+    bill = engine.tou_bill(agg, plan.tou, plan.schedule)
+    weight: dict[str, float] = {}
+    for name in {r["name"] for r in inside if r["kind"] != "aggregate"}:
+        own = [(r["slot"], r["wh"] / 1000) for r in inside if r["name"] == name]
         weight[name] = engine.tou_bill(own, plan.tou, plan.schedule).money.subtotal
     return WindowCost(bill.money, sum(bill.kwh.values()), engine.allocate(bill.money.total, weight))
 
