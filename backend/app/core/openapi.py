@@ -34,6 +34,11 @@ TAGS = [
      "description": "Who the household is and which models produced its results."},
     {"name": "demo-consumption", "parent": "demo", "kind": "nav", "summary": "Consumption",
      "description": "Predicted power and energy per appliance (from the database)."},
+    {"name": "demo-billing", "parent": "demo", "kind": "nav", "summary": "Billing",
+     "description": "What the consumption costs: 6-tier tariff for a household, time-of-use for "
+                    "business and production."},
+    {"name": "demo-insights", "parent": "demo", "kind": "nav", "summary": "Insights",
+     "description": "What ran today and what deserves attention: appliance runs and alerts."},
     {"name": "demo-evaluation", "parent": "demo", "kind": "nav", "summary": "Evaluation",
      "description": "Predictions compared with the household's sub-metered ground truth."},
     {"name": "platform", "kind": "nav", "summary": "Platform",

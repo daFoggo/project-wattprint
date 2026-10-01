@@ -12,11 +12,14 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.billing_params import plan_params, summary
+from app.billing.tariffs import Plan
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.problems import Problem, ValidationProblem
 from app.demo import snapshot
 from app.schemas import demo as s
+from app.services import billing as billing_svc
 from app.services import demo as svc
 from app.services.readings import BUCKETS
 
@@ -176,6 +179,7 @@ def _totals(rows, names: dict[str, str]) -> dict:
     responses={200: {"summary": "Energy per appliance"}, 404: NOT_READY, 422: INVALID},
 )
 async def get_breakdown(start: datetime | None = START, end: datetime | None = END,
+                        plan: Plan = Depends(plan_params),
                         session: AsyncSession = Depends(get_session)):
     p = _snap()["household"]["period"]
     start = _utc(start or datetime.fromisoformat(p["start"]))
@@ -184,8 +188,12 @@ async def get_breakdown(start: datetime | None = START, end: datetime | None = E
         raise _invalid(["query", "end"], "`end` must be after `start`")
     hid = await _hid(session)
     t = _totals(await svc.energy(session, hid, start, end), _names())
+    cost = await billing_svc.window_cost(session, hid, start, end, plan)
+    for item in t["items"]:
+        item["cost_vnd"] = cost.per_device.get(item["key"], 0)
     return {"household_id": hid, "start": start, "end": end,
-            "aggregate_energy_kwh": t["aggregate_kwh"], "totals": t["items"]}
+            "aggregate_energy_kwh": t["aggregate_kwh"], "totals": t["items"],
+            "billing": summary(plan, cost.money)}
 
 
 # --------------------------------------------------------------------------------- evaluation

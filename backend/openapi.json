@@ -904,6 +904,57 @@
               "title": "End"
             },
             "description": "Window end, exclusive. Default: the sample window"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
           }
         ],
         "responses": {
@@ -1415,10 +1466,468 @@
           }
         }
       }
+    },
+    "/api/v1/demo/billing": {
+      "get": {
+        "tags": [
+          "demo-billing"
+        ],
+        "summary": "Bill of a month, to date and forecast",
+        "description": "Prices one calendar month of the demo household up to `asof`, with the scheme that applies to the customer: **6 tiers** for a household (kWh and cost per band, bands per day, current band, headroom, day the next band is reached) or **time of use** for business/production (kWh, share and cost per period). Includes VAT and a forecast of the whole month at the average pace so far. Without parameters: the month of the suggested window, up to its end.",
+        "operationId": "getDemoBilling",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`YYYY-MM`",
+              "title": "Month"
+            },
+            "description": "`YYYY-MM`"
+          },
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Price the month up to here, exclusive; inside the month. Default: the end of the month or of the recorded period, whichever is first",
+              "title": "Asof"
+            },
+            "description": "Price the month up to here, exclusive; inside the month. Default: the end of the month or of the recorded period, whichever is first"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingOut"
+                }
+              }
+            },
+            "summary": "Month bill"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/timeline": {
+      "get": {
+        "tags": [
+          "demo-insights"
+        ],
+        "summary": "When each appliance ran on a day",
+        "description": "Runs of every modelled appliance on one day: start, end, minutes, energy. A run is a stretch above 50 W; pauses up to 5 minutes do not end it and runs under 3 minutes are ignored. Appliances that did not run are left out. `until` cuts the day short (default: end of day).",
+        "operationId": "getDemoTimeline",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "`YYYY-MM-DD`",
+              "title": "Date"
+            },
+            "description": "`YYYY-MM-DD`"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive; inside the day",
+              "title": "Until"
+            },
+            "description": "Exclusive; inside the day"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineOut"
+                }
+              }
+            },
+            "summary": "Runs per appliance"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/alerts": {
+      "get": {
+        "tags": [
+          "demo-insights"
+        ],
+        "summary": "Alerts for the day so far",
+        "description": "Short Vietnamese sentences worth the customer's attention at `asof`: the day against the same hours yesterday, how close the month is to the next tier (or the peak share of a time-of-use customer), the month forecast, a long air-conditioner run and an appliance that takes a large share of the day. Newest first. Without `asof`: the end of the recorded period.",
+        "operationId": "listDemoAlerts",
+        "parameters": [
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Day so far is computed up to here",
+              "title": "Asof"
+            },
+            "description": "Day so far is computed up to here"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsOut"
+                }
+              }
+            },
+            "summary": "Alerts"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AlertOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "day_vs_yesterday",
+              "tier_approaching",
+              "tier_headroom",
+              "tou_peak_share",
+              "month_forecast",
+              "long_run",
+              "big_share"
+            ],
+            "title": "Code",
+            "description": "Rule that raised it, stable for the app"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "warning",
+              "info",
+              "good"
+            ],
+            "title": "Tone"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At",
+            "description": "When it applies (UTC clock of the dataset)"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Sentence in Vietnamese, built from the figures of the window"
+          },
+          "appliance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AC",
+                  "WaterHeater",
+                  "Fridge",
+                  "WashingMachine",
+                  "Other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appliance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "tone",
+          "at",
+          "text"
+        ],
+        "title": "AlertOut"
+      },
+      "AlertsOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof",
+            "description": "Alerts are computed from the start of this day up to here"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Newest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "asof",
+          "items"
+        ],
+        "title": "AlertsOut"
+      },
       "Appliance": {
         "properties": {
           "key": {
@@ -1633,6 +2142,69 @@
         ],
         "title": "ApplianceModel"
       },
+      "ApplianceRuns": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name (Vietnamese)"
+          },
+          "first_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Start"
+          },
+          "last_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last End"
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes",
+            "description": "Total minutes ON"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunOut"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "Chronological"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "first_start",
+          "last_end",
+          "run_count",
+          "minutes",
+          "energy_kwh",
+          "runs"
+        ],
+        "title": "ApplianceRuns"
+      },
       "ApplianceSeries": {
         "properties": {
           "key": {
@@ -1665,6 +2237,228 @@
           "points"
         ],
         "title": "ApplianceSeries"
+      },
+      "BandLine": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Index",
+            "description": "0-based, Bậc 1 = 0"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Bậc 4"
+            ]
+          },
+          "from_kwh": {
+            "type": "number",
+            "title": "From Kwh",
+            "description": "Cumulative kWh of the month where the band starts"
+          },
+          "to_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Kwh",
+            "description": "Where it ends; `null` for the last band"
+          },
+          "price_vnd": {
+            "type": "integer",
+            "title": "Price Vnd",
+            "description": "VND/kWh before VAT"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh",
+            "description": "kWh used in this band so far this month"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd",
+            "description": "Before VAT; rows can differ from the subtotal by a few dồng"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "name",
+          "from_kwh",
+          "to_kwh",
+          "price_vnd",
+          "kwh",
+          "cost_vnd"
+        ],
+        "title": "BandLine"
+      },
+      "Bill": {
+        "properties": {
+          "subtotal_vnd": {
+            "type": "integer",
+            "title": "Subtotal Vnd",
+            "description": "Before VAT"
+          },
+          "vat_vnd": {
+            "type": "integer",
+            "title": "Vat Vnd"
+          },
+          "total_vnd": {
+            "type": "integer",
+            "title": "Total Vnd",
+            "description": "What the customer pays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subtotal_vnd",
+          "vat_vnd",
+          "total_vnd"
+        ],
+        "title": "Bill"
+      },
+      "BillingOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "customer": {
+            "type": "string",
+            "enum": [
+              "household",
+              "business",
+              "production"
+            ],
+            "title": "Customer"
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "tier",
+              "tou"
+            ],
+            "title": "Scheme",
+            "description": "`tier` for a household, `tou` for business/production"
+          },
+          "tariff": {
+            "$ref": "#/components/schemas/TariffInfo"
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "title": "Month",
+            "examples": [
+              "2023-08"
+            ]
+          },
+          "asof": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asof",
+            "description": "The month is priced up to here (exclusive)"
+          },
+          "days_elapsed": {
+            "type": "number",
+            "title": "Days Elapsed"
+          },
+          "days_in_month": {
+            "type": "integer",
+            "title": "Days In Month"
+          },
+          "kwh_to_date": {
+            "type": "number",
+            "title": "Kwh To Date"
+          },
+          "bill_to_date": {
+            "$ref": "#/components/schemas/Bill"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/Forecast"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present when `scheme` is `tier`"
+          },
+          "tou": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TouSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present when `scheme` is `tou`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "customer",
+          "scheme",
+          "tariff",
+          "month",
+          "asof",
+          "days_elapsed",
+          "days_in_month",
+          "kwh_to_date",
+          "bill_to_date",
+          "forecast",
+          "tier",
+          "tou"
+        ],
+        "title": "BillingOut"
+      },
+      "BillingSummary": {
+        "properties": {
+          "customer": {
+            "type": "string",
+            "enum": [
+              "household",
+              "business",
+              "production"
+            ],
+            "title": "Customer"
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "tier",
+              "tou"
+            ],
+            "title": "Scheme"
+          },
+          "tariff": {
+            "$ref": "#/components/schemas/TariffInfo"
+          },
+          "bill": {
+            "$ref": "#/components/schemas/Bill"
+          }
+        },
+        "type": "object",
+        "required": [
+          "customer",
+          "scheme",
+          "tariff",
+          "bill"
+        ],
+        "title": "BillingSummary",
+        "description": "How a window of the breakdown was priced."
       },
       "Body_importHouseholdDisaggregation": {
         "properties": {
@@ -1702,6 +2496,10 @@
             "type": "number",
             "title": "Aggregate Energy Kwh"
           },
+          "billing": {
+            "$ref": "#/components/schemas/BillingSummary",
+            "description": "The window priced for the customer; appliances' `cost_vnd` add up to it"
+          },
           "totals": {
             "items": {
               "$ref": "#/components/schemas/EnergyShare"
@@ -1717,6 +2515,7 @@
           "start",
           "end",
           "aggregate_energy_kwh",
+          "billing",
           "totals"
         ],
         "title": "BreakdownOut"
@@ -1874,6 +2673,24 @@
           "appliances"
         ],
         "title": "DayEnergy"
+      },
+      "DaySegment": {
+        "properties": {
+          "band": {
+            "type": "integer",
+            "title": "Band"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "band",
+          "kwh"
+        ],
+        "title": "DaySegment"
       },
       "DeviceCreate": {
         "properties": {
@@ -2098,6 +2915,18 @@
             "type": "number",
             "title": "Share Pct",
             "description": "Share of the whole-house energy of the window, %"
+          },
+          "cost_vnd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Vnd",
+            "description": "Part of the window's bill (with VAT); only in the breakdown"
           }
         },
         "type": "object",
@@ -2198,6 +3027,29 @@
           "text"
         ],
         "title": "Finding"
+      },
+      "Forecast": {
+        "properties": {
+          "kwh": {
+            "type": "number",
+            "title": "Kwh",
+            "description": "Whole month at the average pace so far"
+          },
+          "pace_kwh_per_day": {
+            "type": "number",
+            "title": "Pace Kwh Per Day"
+          },
+          "bill": {
+            "$ref": "#/components/schemas/Bill"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kwh",
+          "pace_kwh_per_day",
+          "bill"
+        ],
+        "title": "Forecast"
       },
       "Household": {
         "properties": {
@@ -2580,6 +3432,62 @@
         ],
         "title": "Period"
       },
+      "PeriodLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "offpeak",
+              "normal",
+              "peak"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Cao điểm"
+            ]
+          },
+          "hours": {
+            "type": "string",
+            "title": "Hours",
+            "examples": [
+              "T2–T7 09:30–11:30 · 17:00–20:00"
+            ]
+          },
+          "price_vnd": {
+            "type": "integer",
+            "title": "Price Vnd",
+            "description": "VND/kWh before VAT"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "share_pct": {
+            "type": "number",
+            "title": "Share Pct"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd",
+            "description": "Before VAT"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "hours",
+          "price_vnd",
+          "kwh",
+          "share_pct",
+          "cost_vnd"
+        ],
+        "title": "PeriodLine"
+      },
       "PowerPair": {
         "properties": {
           "measured_w": {
@@ -2796,6 +3704,42 @@
         ],
         "title": "ReadingsBulkIn"
       },
+      "RunOut": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End",
+            "description": "Exclusive: the minute after the last one ON"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "peak_power_w": {
+            "type": "number",
+            "title": "Peak Power W"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "minutes",
+          "energy_kwh",
+          "peak_power_w"
+        ],
+        "title": "RunOut"
+      },
       "SampleDayOut": {
         "properties": {
           "household": {
@@ -2871,6 +3815,35 @@
         ],
         "title": "SamplePoint"
       },
+      "ScheduleInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "effective_from"
+        ],
+        "title": "ScheduleInfo"
+      },
       "SeriesOut": {
         "properties": {
           "device_id": {
@@ -2903,6 +3876,237 @@
         ],
         "title": "SeriesOut"
       },
+      "TariffInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "residential_6_tier"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Sinh hoạt 6 bậc"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "examples": [
+              "QĐ 1279/QĐ-BCT (09/05/2025)"
+            ]
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          },
+          "vat_rate": {
+            "type": "number",
+            "title": "Vat Rate",
+            "examples": [
+              0.08
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "effective_from",
+          "vat_rate"
+        ],
+        "title": "TariffInfo"
+      },
+      "TierDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd",
+            "description": "Before VAT, at the bands this day's kWh fall in"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/DaySegment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "description": "The day's kWh split by band, in band order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "kwh",
+          "cost_vnd",
+          "segments"
+        ],
+        "title": "TierDay"
+      },
+      "TierSection": {
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/BandLine"
+            },
+            "type": "array",
+            "title": "Bands"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/TierDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TierStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bands",
+          "daily",
+          "status"
+        ],
+        "title": "TierSection"
+      },
+      "TierStatus": {
+        "properties": {
+          "band_index": {
+            "type": "integer",
+            "title": "Band Index"
+          },
+          "band_name": {
+            "type": "string",
+            "title": "Band Name"
+          },
+          "headroom_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headroom Kwh",
+            "description": "kWh left in the band; `null` in the last one"
+          },
+          "next_band_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Band Index"
+          },
+          "next_band_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Band Name"
+          },
+          "step_pct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Pct",
+            "description": "Price of the next band over the current, %"
+          },
+          "cross_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cross Day",
+            "description": "Day of the month the next band is reached at the current pace; `null` if not this month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "band_index",
+          "band_name",
+          "headroom_kwh",
+          "next_band_index",
+          "next_band_name",
+          "step_pct",
+          "cross_day"
+        ],
+        "title": "TierStatus"
+      },
+      "TimelineOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Until",
+            "description": "Runs are looked for up to here (exclusive)"
+          },
+          "on_threshold_w": {
+            "type": "number",
+            "title": "On Threshold W",
+            "description": "An appliance is ON above this power"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApplianceRuns"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Appliances that ran, by first start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "date",
+          "until",
+          "on_threshold_w",
+          "items"
+        ],
+        "title": "TimelineOut"
+      },
       "TotalOut": {
         "properties": {
           "name": {
@@ -2925,6 +4129,74 @@
           "share_pct"
         ],
         "title": "TotalOut"
+      },
+      "TouDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "by_period": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "offpeak",
+                "normal",
+                "peak"
+              ]
+            },
+            "type": "object",
+            "title": "By Period"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "kwh",
+          "by_period"
+        ],
+        "title": "TouDay"
+      },
+      "TouSection": {
+        "properties": {
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleInfo"
+          },
+          "flat_price_vnd": {
+            "type": "integer",
+            "title": "Flat Price Vnd",
+            "description": "Price per kWh of a customer below the mandatory threshold (25 kVA or 2,000 kWh/month), who has no 3-price meter"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodLine"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/TouDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schedule",
+          "flat_price_vnd",
+          "periods",
+          "daily"
+        ],
+        "title": "TouSection"
       },
       "ValidationProblem": {
         "additionalProperties": true,
@@ -3048,6 +4320,20 @@
       "parent": "demo",
       "kind": "nav",
       "summary": "Consumption"
+    },
+    {
+      "name": "demo-billing",
+      "description": "What the consumption costs: 6-tier tariff for a household, time-of-use for business and production.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Billing"
+    },
+    {
+      "name": "demo-insights",
+      "description": "What ran today and what deserves attention: appliance runs and alerts.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Insights"
     },
     {
       "name": "demo-evaluation",

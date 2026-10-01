@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.billing import BillingSummary
+
 ApplianceKey = Literal["AC", "WaterHeater", "Fridge", "WashingMachine", "Other"]
 MeteredKey = Literal["AC", "WaterHeater", "Fridge", "WashingMachine"]
 Bucket = Literal["1 minute", "10 minutes", "1 hour", "1 day"]
@@ -94,6 +96,8 @@ class EnergyShare(BaseModel):
     name: str
     energy_kwh: float
     share_pct: float = Field(description="Share of the whole-house energy of the window, %")
+    cost_vnd: int | None = Field(
+        None, description="Part of the window's bill (with VAT); only in the breakdown")
 
 
 class ConsumptionOut(BaseModel):
@@ -112,6 +116,8 @@ class BreakdownOut(BaseModel):
     start: datetime
     end: datetime
     aggregate_energy_kwh: float
+    billing: BillingSummary = Field(
+        description="The window priced for the customer; appliances' `cost_vnd` add up to it")
     totals: list[EnergyShare] = Field(description="Predicted energy per appliance, largest first")
 
 

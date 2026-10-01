@@ -35,7 +35,7 @@ async def test_3_2_features_and_problem_details():
     ops = {op["operationId"]: op for item in spec["paths"].values() for op in item.values()}
     assert len(ops) == sum(len(item) for item in spec["paths"].values()), "operationId not unique"
     demo = [o for o in ops.values() if any(t.startswith("demo") for t in o["tags"])]
-    assert len(demo) == 7
+    assert len(demo) == 10
     for op in demo:
         assert op["responses"]["200"]["summary"]
         assert "application/problem+json" in op["responses"]["404"]["content"]

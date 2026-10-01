@@ -133,10 +133,13 @@ Mọi kết quả đều đã tính sẵn từ thực nghiệm: chuỗi dự đo
 |---|---|
 | `GET /api/v1/demo/household` | Hồ sơ hộ (dataset, thời gian, thiết bị, cửa sổ gợi ý) và thông tin model |
 | `GET /api/v1/demo/consumption?start=&end=&bucket=` | Công suất tổng + dự đoán từng thiết bị, kèm kWh và %. Mặc định: tuần 10–17/07/2023, theo giờ |
-| `GET /api/v1/demo/breakdown?start=&end=` | kWh và % từng thiết bị. Mặc định: cả kỳ |
+| `GET /api/v1/demo/breakdown?start=&end=&customer=` | kWh, % và **tiền** (đã VAT) từng thiết bị. Mặc định: cả kỳ |
+| `GET /api/v1/demo/billing?month=&asof=&customer=` | Hóa đơn tháng đến `asof` và dự báo cả tháng: **hộ (`household`) tính 6 bậc**, **kinh doanh/sản xuất (`business`/`production`) tính theo giờ TOU**. Có VAT |
 | `GET /api/v1/demo/evaluation` | F1, MAE, SAE... từng thiết bị, cơ cấu thật/dự đoán, F1 theo quý, nhận xét |
 | `GET /api/v1/demo/evaluation/monthly` · `/daily?start=&end=` | kWh thật và dự đoán theo tháng / theo ngày |
 | `GET /api/v1/demo/evaluation/sample-day` | Ngày 12/07/2023, 10 phút một điểm, công suất thật và dự đoán |
+
+**Giá điện** (`backend/app/billing/`): biểu giá là dữ liệu (`tariffs.py`, QĐ 1279/QĐ-BCT: 6 bậc sinh hoạt 1.984–3.460 đ/kWh, TOU kinh doanh và sản xuất theo cấp điện áp, VAT 8% đến hết 2026), phép tính là hàm thuần (`engine.py`, có test). Hộ sinh hoạt chưa có TOU nên luôn tính 6 bậc; TOU chỉ dành cho kinh doanh/sản xuất (`voltage=`, `hours=legacy|qd963`). Biểu 5 bậc (QĐ 14/2025/QĐ-TTg) chưa áp dụng, thêm khi có giá.
 
 Tài liệu: OpenAPI **3.2.0** tại `/api/v1/openapi.json` (bản lưu: `backend/openapi.json`), Swagger UI tại `/docs`.
 Lỗi trả theo RFC 9457 (`application/problem+json`). Sau khi train lại: `make paper-data demo-snapshot` trong
