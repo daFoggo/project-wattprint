@@ -13,6 +13,8 @@ export interface DonutBreakdownProps {
   onSelectIndex?: (index: number) => void;
   unitMode?: UnitMode;
   totalKwh?: number;
+  /** Tiền điện của cả kỳ (đã gồm VAT). Mặc định cộng tiền từng thiết bị. */
+  totalCost?: number;
   periodLabel?: string;
   onDevicePress?: (device: BubbleDevice) => void;
 }
@@ -80,12 +82,15 @@ function describeDonutSlice(
   ].join(' ');
 }
 
+const MIN_ICON_SWEEP = 12; // độ
+
 export function DonutBreakdown({
   devices = [],
   selectedIndex = 0,
   onSelectIndex,
   unitMode = 'kwh',
   totalKwh,
+  totalCost: totalCostProp,
 }: DonutBreakdownProps) {
   const chartSize = 250;
   const cx = chartSize / 2;
@@ -101,7 +106,7 @@ export function DonutBreakdown({
       ? totalKwh
       : devices.reduce((sum, d) => sum + (d.kwh || 0), 0);
 
-  const totalCost = Math.round(totalSumKwh * 2845); // VND rate
+  const totalCost = totalCostProp ?? devices.reduce((sum, d) => sum + (d.cost || 0), 0);
 
   const activeIndex = Math.min(
     Math.max(0, selectedIndex),
@@ -145,6 +150,8 @@ export function DonutBreakdown({
       const rMid = (rInner + rOuter) / 2;
       const iconPos = polarToCartesian(cx, cy, rMid, midAngle);
       const iconSize = isSelected ? 20 : rawSweep < 25 ? 14 : 18;
+      // lát quá nhỏ thì không đủ chỗ cho biểu tượng: chỉ vẽ lát, bỏ biểu tượng
+      const showIcon = rawSweep >= MIN_ICON_SWEEP;
 
       // Use official WattPrint 5-step Data Ramp for vibrant, consistent identity
       const ramp = DataRamp[index % DataRamp.length];
@@ -160,6 +167,7 @@ export function DonutBreakdown({
         iconColor,
         iconPos,
         iconSize,
+        showIcon,
       };
     });
   }, [
@@ -210,17 +218,19 @@ export function DonutBreakdown({
                   strokeWidth={1.5}
                   onPress={() => handleSelect(slice.index)}
                 />
-                <G
-                  x={slice.iconPos.x - slice.iconSize / 2}
-                  y={slice.iconPos.y - slice.iconSize / 2}
-                  onPress={() => handleSelect(slice.index)}>
-                  <ApplianceIcon
-                    name={slice.device.name}
-                    id={slice.device.id}
-                    size={slice.iconSize}
-                    color={slice.iconColor}
-                  />
-                </G>
+                {slice.showIcon && (
+                  <G
+                    x={slice.iconPos.x - slice.iconSize / 2}
+                    y={slice.iconPos.y - slice.iconSize / 2}
+                    onPress={() => handleSelect(slice.index)}>
+                    <ApplianceIcon
+                      name={slice.device.name}
+                      id={slice.device.id}
+                      size={slice.iconSize}
+                      color={slice.iconColor}
+                    />
+                  </G>
+                )}
               </G>
             ))}
 
@@ -241,17 +251,19 @@ export function DonutBreakdown({
                   strokeWidth={1.5}
                   onPress={() => handleSelect(slice.index)}
                 />
-                <G
-                  x={slice.iconPos.x - slice.iconSize / 2}
-                  y={slice.iconPos.y - slice.iconSize / 2}
-                  onPress={() => handleSelect(slice.index)}>
-                  <ApplianceIcon
-                    name={slice.device.name}
-                    id={slice.device.id}
-                    size={slice.iconSize}
-                    color={slice.iconColor}
-                  />
-                </G>
+                {slice.showIcon && (
+                  <G
+                    x={slice.iconPos.x - slice.iconSize / 2}
+                    y={slice.iconPos.y - slice.iconSize / 2}
+                    onPress={() => handleSelect(slice.index)}>
+                    <ApplianceIcon
+                      name={slice.device.name}
+                      id={slice.device.id}
+                      size={slice.iconSize}
+                      color={slice.iconColor}
+                    />
+                  </G>
+                )}
               </G>
             ))}
         </Svg>

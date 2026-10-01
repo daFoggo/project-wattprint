@@ -68,6 +68,7 @@ export function UsageBarChart({
 
   const chartBarAreaHeight = Math.max(75, height - 30);
   const barWidth = 24;
+  const dense = chartItems.length > 16; // quá nhiều cột: chỉ ghi giá trị của cột đang chọn
 
   const handleBarPress = (index: number) => {
     try {
@@ -151,7 +152,7 @@ export function UsageBarChart({
                   styles.barValueText,
                   isSelected && styles.barValueTextActive,
                 ]}>
-                {formattedVal}
+                {dense && !isSelected ? '' : formattedVal}
               </Text>
 
               {/* Stacked Bar SVG */}

@@ -6,31 +6,6 @@ export type TariffPeriod = 'off_peak' | 'normal' | 'peak';
 
 export type EnergyStatus = 'good' | 'warning' | 'critical';
 
-export interface DeviceUsage {
-  id: string;
-  name: string;
-  category: string;
-  kwh: number;
-  cost: number;
-  share: number;
-}
-
-export interface UsagePoint {
-  timestamp: string;
-  kwh: number;
-  tariffPeriod: TariffPeriod;
-}
-
-export interface EnergySummary {
-  currentPowerW: number;
-  todayKwh: number;
-  todayCost: number;
-  projectedMonthlyCost: number;
-  status: EnergyStatus;
-  statusMessage: string;
-  briefSummary: string;
-}
-
 export type UnitMode = 'kwh' | 'cost';
 
 export type DashboardRange = 'day' | 'week' | 'month';
@@ -43,7 +18,7 @@ export interface BubbleDevice {
   cost: number;
 }
 
-export type UsageTab = 'day' | 'week' | 'month' | 'year';
+export type UsageTab = 'day' | 'week' | 'month';
 export type BreakdownView = 'bubble' | 'donut' | 'bars';
 export type CustomerType = 'home' | 'biz';
 
@@ -67,23 +42,6 @@ export interface UsageChartItem {
   tierSegments?: UsageChartSegment[];
 }
 
-export interface RangeData {
-  kwh: number;
-  deltaPct: number;
-  period: string;
-  comparison: string;
-  bars: BarDatum[];
-  chartItems?: UsageChartItem[];
-  shares: number[];
-  comparisonCurrent?: number[];
-  comparisonPrevious?: number[];
-  currentLabel?: string;
-  previousLabel?: string;
-  axisStart?: string;
-  axisEnd?: string;
-  datePrefix?: string;
-}
-
 export interface TierInfo {
   name: string;
   sub: string;
@@ -92,34 +50,6 @@ export interface TierInfo {
   color: string;
   symbol?: string;
   pattern?: 'solid' | 'hatch' | 'muted' | 'stripe-h' | 'grid' | 'cross';
-}
-
-export interface TOUInfo {
-  id: string;
-  name: string;
-  sub: string;
-  price: number;
-  share: number;
-  hours: string;
-  kwh: number;
-  cost: number;
-  color: string;
-}
-
-export interface BillDay {
-  day: number;
-  kwh: number;
-  segs: { ti: number; kwh: number }[];
-}
-
-export interface DeviceDetailData {
-  id: string;
-  name: string;
-  meta: string;
-  avgW: string;
-  costMonth: string;
-  note: string;
-  stats: { label: string; value: string }[];
 }
 
 export interface ChatFact {

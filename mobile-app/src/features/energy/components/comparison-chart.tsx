@@ -5,6 +5,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-nativ
 import { Fonts, WattPrintTokens } from '@/constants/theme';
 
 export interface ComparisonChartProps {
+  /** Giá trị từng ngày theo đơn vị đang xem (kWh hoặc đồng); đường tiền lấy từ giá thật của backend. */
   currentSeries?: number[];
   previousSeries?: number[];
   currentDayIndex?: number;
@@ -14,7 +15,6 @@ export interface ComparisonChartProps {
   unitMode?: 'kwh' | 'cost';
   axisStart?: string;
   axisEnd?: string;
-  rate?: number;
 }
 
 // Mild smoothing to eliminate erratic day-to-day saw-tooth jitter while preserving real trend peaks
@@ -63,7 +63,6 @@ export function ComparisonChart({
   unitMode = 'kwh',
   axisStart = '01/09',
   axisEnd = '30/09',
-  rate = 2380,
 }: ComparisonChartProps) {
   const [chartWidth, setChartWidth] = useState(320);
 
@@ -94,7 +93,7 @@ export function ComparisonChart({
   const formattedNow = useMemo(() => {
     if (unitMode === 'cost') {
       return {
-        val: Math.round(cumulativeNow * rate).toLocaleString('vi-VN'),
+        val: Math.round(cumulativeNow).toLocaleString('vi-VN'),
         unit: 'đ',
       };
     }
@@ -102,12 +101,12 @@ export function ComparisonChart({
       val: cumulativeNow.toFixed(1).replace('.', ','),
       unit: 'kWh',
     };
-  }, [cumulativeNow, unitMode, rate]);
+  }, [cumulativeNow, unitMode]);
 
   const formattedLast = useMemo(() => {
     if (unitMode === 'cost') {
       return {
-        val: Math.round(cumulativeLast * rate).toLocaleString('vi-VN'),
+        val: Math.round(cumulativeLast).toLocaleString('vi-VN'),
         unit: 'đ',
       };
     }
@@ -115,10 +114,10 @@ export function ComparisonChart({
       val: cumulativeLast.toFixed(1).replace('.', ','),
       unit: 'kWh',
     };
-  }, [cumulativeLast, unitMode, rate]);
+  }, [cumulativeLast, unitMode]);
 
   // 2. Daily line layout across the month
-  const totalDays = Math.max(previousSeries.length, 30);
+  const totalDays = Math.max(previousSeries.length, currentSeries.length, 28);
   const chartHeight = 135;
   const padX = 12;
   const padTop = 16;

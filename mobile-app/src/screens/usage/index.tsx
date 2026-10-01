@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import Animated, { Easing, SlideInRight, SlideOutRight } from 'react-native-reanimated';
@@ -12,16 +12,18 @@ import { BreakdownTable } from '@/features/energy/components/breakdown-table';
 import { ComparisonChart } from '@/features/energy/components/comparison-chart';
 import { CopilotInsightCard } from '@/features/energy/components/copilot-insight-card';
 import { DonutBreakdown } from '@/features/energy/components/donut-breakdown';
-import { NeighbourComparison } from '@/features/energy/components/neighbour-comparison';
 import { UnderlineTabRow } from '@/features/energy/components/underline-tab-row';
 import { UsageBarChart } from '@/features/energy/components/usage-bar-chart';
+import { useUsage } from '@/features/energy/api';
 import {
-  getUsageDevices,
-  LAST_MONTH_30_DAYS,
-  RATE,
-  THIS_MONTH_DAYS,
-  USAGE_RANGES,
-} from '@/features/energy/mock';
+  comparisonAxis,
+  kwhText,
+  lastActiveIndex,
+  periodLabel,
+  toChartItems,
+  toDevices,
+  vnd,
+} from '@/features/energy/usage-view';
 import type { BubbleDevice, UsageTab } from '@/features/energy/types';
 import { useEnergyStore } from '@/features/energy/use-energy-store';
 import { DeviceDetailScreen } from '@/screens/device-detail/index';
@@ -42,12 +44,14 @@ export function UsageScreen() {
     setUsageTab,
     selectedDeviceIndex,
     setSelectedDeviceIndex,
-    selectedUsageBar,
-    setSelectedUsageBar,
     activeDeviceDetail,
     setActiveDeviceDetail,
-    setActiveThreadId,
+    openInsightThread,
   } = useEnergyStore();
+
+  // kỳ đang xem: 0 là kỳ hiện tại, -1 là kỳ trước nó, ...
+  const [offset, setOffset] = useState(0);
+  const [pickedBar, setPickedBar] = useState<number | null>(null);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress' as any, () => {
@@ -66,18 +70,28 @@ export function UsageScreen() {
     return () => backHandler.remove();
   }, [activeDeviceDetail, setActiveDeviceDetail]);
 
-  const rangeKey = usageTab;
-  const currentRangeData = USAGE_RANGES[rangeKey] ?? USAGE_RANGES.week;
-  const devices = getUsageDevices(rangeKey);
+  const { data, isError, refetch } = useUsage(usageTab, offset);
+  // so sánh luôn theo tháng: ở tab Tháng thì theo tháng đang xem, còn lại là tháng hiện tại
+  const { data: monthly } = useUsage('month', usageTab === 'month' ? offset : 0);
+  const monthlyLastIndex = monthly ? lastActiveIndex(monthly.buckets) : 0;
 
-  const heroValue =
-    unit === 'cost'
-      ? `${Math.round(currentRangeData.kwh * RATE).toLocaleString('vi-VN')}`
-      : `${currentRangeData.kwh.toLocaleString('vi-VN')}`;
-  const heroUnit = unit === 'cost' ? 'VND' : 'kWh';
+  const changeTab = (key: UsageTab) => {
+    setUsageTab(key);
+    setOffset(0);
+    setPickedBar(null);
+  };
+  const changeOffset = (next: number) => {
+    setOffset(next);
+    setPickedBar(null);
+  };
 
-  const bars = currentRangeData?.bars ?? [];
-  const chartItems = currentRangeData?.chartItems ?? [];
+  const chartItems = useMemo(
+    () => (data ? toChartItems(data.range, data.buckets) : []),
+    [data]
+  );
+  const devices = useMemo(() => (data ? toDevices(data.devices) : []), [data]);
+  const lastIndex = data ? lastActiveIndex(data.buckets) : 0;
+  const selectedBar = Math.min(pickedBar ?? lastIndex, Math.max(chartItems.length - 1, 0));
 
   const handleDevicePress = (device: BubbleDevice) => {
     try {
@@ -86,15 +100,16 @@ export function UsageScreen() {
     setActiveDeviceDetail(device);
   };
 
-  const datePeriodLabel = useMemo(() => {
-    if (usageTab === 'day') {
-      return 'Hôm nay, 14 tháng 9';
-    }
-    if (usageTab === 'week') {
-      return 'Tuần 37 (08/09 - 14/09/2026)';
-    }
-    return 'Tháng 09/2026 (01/09 - 14/09)';
-  }, [usageTab]);
+  // "Ước tính cả kỳ" khi kỳ chưa kết thúc, ngược lại là tổng của kỳ
+  const estimate = data ? (data.forecast ?? { kwh: data.kwh, cost_vnd: data.cost_vnd }) : null;
+  const heroValue = estimate
+    ? unit === 'cost'
+      ? vnd(estimate.cost_vnd)
+      : kwhText(estimate.kwh)
+    : '–';
+  const heroUnit = unit === 'cost' ? 'VND' : 'kWh';
+  const deltaPct = data?.delta_pct ?? null;
+  const dateLabel = data ? periodLabel(data.range, data.period, data.offset) : '';
 
   return (
     <View style={styles.root}>
@@ -149,7 +164,7 @@ export function UsageScreen() {
           <UnderlineTabRow
             tabs={TABS}
             activeKey={usageTab}
-            onChange={(key) => setUsageTab(key as UsageTab)}
+            onChange={(key) => changeTab(key as UsageTab)}
             fullWidth={true}
           />
 
@@ -157,35 +172,40 @@ export function UsageScreen() {
           <View style={styles.dateNavRow}>
             <Pressable
               hitSlop={10}
+              onPress={() => changeOffset(offset - 1)}
               accessibilityRole="button"
               accessibilityLabel="Kỳ trước"
               style={styles.dateNavBtn}>
               <Text style={styles.dateNavChevron}>‹</Text>
             </Pressable>
-            <Text style={styles.dateNavLabel}>{datePeriodLabel}</Text>
+            <Text style={styles.dateNavLabel}>{dateLabel}</Text>
             <Pressable
               hitSlop={10}
+              disabled={offset >= 0}
+              onPress={() => changeOffset(offset + 1)}
               accessibilityRole="button"
               accessibilityLabel="Kỳ tiếp theo"
-              style={[styles.dateNavBtn, styles.dateNavBtnDisabled]}>
-              <Text style={[styles.dateNavChevron, styles.dateNavChevronDisabled]}>›</Text>
+              style={[styles.dateNavBtn, offset >= 0 && styles.dateNavBtnDisabled]}>
+              <Text style={[styles.dateNavChevron, offset >= 0 && styles.dateNavChevronDisabled]}>›</Text>
             </Pressable>
           </View>
 
           {/* Subtle Period Summary Banner */}
           <View style={styles.estimationBanner}>
             <Text style={styles.estimationText}>
-              Ước tính cả kỳ: <Text style={styles.estimationHighlight}>{heroValue} {heroUnit}</Text>
-              {` (${currentRangeData.deltaPct <= 0 ? 'giảm' : 'tăng'} ${Math.abs(currentRangeData.deltaPct)}%)`}
+              {data?.forecast ? 'Ước tính cả kỳ: ' : 'Cả kỳ: '}
+              <Text style={styles.estimationHighlight}>{heroValue} {heroUnit}</Text>
+              {deltaPct === null
+                ? ''
+                : ` (${deltaPct <= 0 ? 'giảm' : 'tăng'} ${Math.abs(Math.round(deltaPct))}%)`}
             </Text>
           </View>
 
           {/* Responsive Bar Chart with Numbers on Each Column */}
           <UsageBarChart
             items={chartItems}
-            bars={bars}
-            selectedIndex={selectedUsageBar}
-            onSelect={setSelectedUsageBar}
+            selectedIndex={selectedBar}
+            onSelect={setPickedBar}
             height={160}
             unitMode={unit}
             showLegend={true}
@@ -207,8 +227,11 @@ export function UsageScreen() {
                 selectedIndex={selectedDeviceIndex}
                 onSelectIndex={setSelectedDeviceIndex}
                 unitMode={unit}
-                totalKwh={currentRangeData.kwh}
-                periodLabel={currentRangeData.period}
+                totalKwh={Math.round((data?.kwh ?? 0) * 10) / 10}
+                totalCost={data?.cost_vnd}
+                periodLabel={
+                  { day: 'từ đầu ngày đến giờ', week: 'từ đầu tuần đến giờ', month: 'từ đầu tháng đến giờ' }[usageTab]
+                }
                 onDevicePress={handleDevicePress}
               />
 
@@ -221,45 +244,49 @@ export function UsageScreen() {
               />
             </Card>
 
-            {/* CARD: RANGE-AWARE COMPARISON CHART */}
+            {/* CARD: SO SÁNH THEO THÁNG + gợi ý Copilot, luôn so tháng này với tháng trước */}
             <Card
               className="border-0 shadow-none bg-white rounded-[20px] p-5 gap-4"
               style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.eyebrow}>SO SÁNH CÙNG KỲ</Text>
+                <Text style={styles.eyebrow}>SO SÁNH THEO THÁNG</Text>
               </View>
 
-              <ComparisonChart
-                currentSeries={THIS_MONTH_DAYS}
-                previousSeries={LAST_MONTH_30_DAYS.slice(0, 14)}
-                currentDayIndex={THIS_MONTH_DAYS.length - 1}
-                currentLabel="Tháng này"
-                previousLabel="Tháng trước"
-                currentDateLabel="14/09"
-                axisStart="01/09"
-                axisEnd="30/09"
-                unitMode={unit}
-                rate={RATE}
-              />
+              {monthly && (
+                <>
+                  <ComparisonChart
+                    currentSeries={monthly.buckets
+                      .slice(0, monthlyLastIndex + 1)
+                      .map((b) => (unit === 'cost' ? b.cost_vnd : b.kwh))}
+                    previousSeries={monthly.buckets.map((b) =>
+                      unit === 'cost' ? (b.previous_cost_vnd ?? 0) : (b.previous_kwh ?? 0)
+                    )}
+                    currentDayIndex={monthlyLastIndex}
+                    {...comparisonAxis('month', monthly.period, monthly.offset)}
+                    unitMode={unit}
+                  />
+
+                  {/* Copilot: câu hỏi và nhận xét do backend dựng từ số liệu của chính hai tháng này */}
+                  <CopilotInsightCard
+                    embedded
+                    eyebrow="TRỢ LÝ COPILOT · GIẢI ĐÁP"
+                    question={monthly.insight.question}
+                    snippet={monthly.insight.text}
+                    actionText="Hỏi Copilot giải đáp chi tiết"
+                    onPress={() => {
+                      openInsightThread(monthly.insight.question, monthly.insight.text);
+                      router.push('/copilot');
+                    }}
+                  />
+                </>
+              )}
             </Card>
 
-            {/* CONTEXTUAL COPILOT INSIGHT BLOCK */}
-            <CopilotInsightCard
-              eyebrow="TRỢ LÝ COPILOT · GIẢI ĐÁP"
-              question="Giải đáp giúp tôi: Tại sao tháng này tiền điện tăng?"
-              snippet="Nhiệt độ ngoài trời tăng +2,4°C khiến điều hòa chạy lâu hơn 68%, đẩy gia đình chạm ngưỡng Bậc 5 EVN."
-              actionText="Hỏi Copilot giải đáp chi tiết"
-              onPress={() => {
-                setActiveThreadId('thread-1');
-                router.push('/copilot');
-              }}
-            />
-
-            <NeighbourComparison
-              wattage={960}
-              percentile={62}
-              unitMode={unit}
-            />
+            {isError && !data && (
+              <Pressable onPress={() => refetch()} accessibilityRole="button">
+                <Text style={styles.retry}>Không tải được dữ liệu tiêu thụ. THỬ LẠI</Text>
+              </Pressable>
+            )}
           </View>
       </ScrollView>
     </SafeAreaView>
@@ -393,6 +420,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 22,
     gap: 16,
+  },
+  retry: {
+    fontFamily: Fonts.monoMedium,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textAlign: 'center',
+    color: WattPrintTokens.colors.accentDeep,
   },
   eyebrow: {
     fontFamily: Fonts.monoMedium,

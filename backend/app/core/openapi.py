@@ -37,6 +37,8 @@ TAGS = [
     {"name": "demo-billing", "parent": "demo", "kind": "nav", "summary": "Billing",
      "description": "What the consumption costs: 6-tier tariff for a household, time-of-use for "
                     "business and production."},
+    {"name": "demo-usage", "parent": "demo", "kind": "nav", "summary": "Usage",
+     "description": "A day, week or month of consumption with its cost, and one appliance of it."},
     {"name": "demo-insights", "parent": "demo", "kind": "nav", "summary": "Insights",
      "description": "What ran today and what deserves attention: appliance runs and alerts."},
     {"name": "demo-evaluation", "parent": "demo", "kind": "nav", "summary": "Evaluation",

@@ -7,17 +7,20 @@ import { Fonts, WattPrintTokens } from '@/constants/theme';
 
 interface CopilotInsightCardProps {
   eyebrow?: string;
-  question?: string;
-  snippet?: string;
+  question: string;
+  snippet: string;
   actionText?: string;
+  /** Nằm trong một thẻ khác: nền nhạt, không còn là khối đậm riêng. */
+  embedded?: boolean;
   onPress: () => void;
 }
 
 export function CopilotInsightCard({
   eyebrow = 'TRỢ LÝ COPILOT · HỎI NHANH',
-  question = 'Giải đáp giúp tôi: Tại sao tháng này tiền điện tăng?',
-  snippet = 'Nhiệt độ ngoài trời tăng +2,4°C khiến điều hòa chạy lâu hơn 68%, đẩy 42 kWh sang Bậc 4 EVN.',
+  question,
+  snippet,
   actionText = 'Hỏi Copilot giải đáp chi tiết',
+  embedded = false,
   onPress,
 }: CopilotInsightCardProps) {
   const handlePress = () => {
@@ -34,29 +37,38 @@ export function CopilotInsightCard({
       accessibilityLabel={`${question}. ${actionText}`}
       style={({ pressed }) => [
         styles.card,
+        embedded && styles.cardEmbedded,
         pressed && styles.cardPressed,
       ]}>
       {/* Top Header Row */}
       <View style={styles.topRow}>
         <View style={styles.badge}>
-          <Sparkles size={13} color={WattPrintTokens.colors.tertiary} strokeWidth={2.4} />
-          <Text style={styles.eyebrow}>{eyebrow}</Text>
+          <Sparkles
+            size={13}
+            color={embedded ? WattPrintTokens.colors.accentDeep : WattPrintTokens.colors.tertiary}
+            strokeWidth={2.4}
+          />
+          <Text style={[styles.eyebrow, embedded && styles.eyebrowEmbedded]}>{eyebrow}</Text>
         </View>
       </View>
 
       {/* Burning Question */}
-      <Text style={styles.question}>{question}</Text>
+      <Text style={[styles.question, embedded && styles.questionEmbedded]}>{question}</Text>
 
       {/* Grounded Evidence Snippet */}
-      <Text style={styles.snippet} numberOfLines={2}>
+      <Text style={[styles.snippet, embedded && styles.snippetEmbedded]} numberOfLines={embedded ? 4 : 2}>
         {snippet}
       </Text>
 
       {/* Action Footer Button */}
       <View style={styles.actionRow}>
-        <View style={styles.actionBtn}>
-          <Text style={styles.actionText}>{actionText}</Text>
-          <ArrowRight size={14} color={WattPrintTokens.colors.primary} strokeWidth={2.5} />
+        <View style={[styles.actionBtn, embedded && styles.actionBtnEmbedded]}>
+          <Text style={[styles.actionText, embedded && styles.actionTextEmbedded]}>{actionText}</Text>
+          <ArrowRight
+            size={14}
+            color={embedded ? WattPrintTokens.colors.tertiary : WattPrintTokens.colors.primary}
+            strokeWidth={2.5}
+          />
         </View>
       </View>
     </Pressable>
@@ -72,6 +84,17 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
   },
+  cardEmbedded: {
+    backgroundColor: WattPrintTokens.colors.primaryContainer, // #EFF4E6
+    borderRadius: WattPrintTokens.radii.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  eyebrowEmbedded: { color: WattPrintTokens.colors.accentDeep },
+  questionEmbedded: { color: WattPrintTokens.colors.primary, fontSize: 15 },
+  snippetEmbedded: { color: WattPrintTokens.colors.secondary },
+  actionBtnEmbedded: { backgroundColor: WattPrintTokens.colors.primary },
+  actionTextEmbedded: { color: WattPrintTokens.colors.tertiary },
   cardPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],

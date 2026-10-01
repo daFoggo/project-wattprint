@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
@@ -7,15 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
 import { Card } from '@/components/common/card';
+import { useDeviceUsage, type UsageRange } from '@/features/energy/api';
 import { ApplianceIcon } from '@/features/energy/components/appliance-icon';
 import { UnderlineTabRow } from '@/features/energy/components/underline-tab-row';
 import { UsageBarChart } from '@/features/energy/components/usage-bar-chart';
-import {
-  DEVICE_DETAIL_AIRCON,
-  DEVICE_WEEK_BARS,
-  getDeviceDetail,
-} from '@/features/energy/mock';
-import type { BarDatum, BubbleDevice } from '@/features/energy/types';
+import type { BubbleDevice, UsageChartItem } from '@/features/energy/types';
+import { kwhText, periodLabel, toChartItems, vnd } from '@/features/energy/usage-view';
 
 const DEV_TABS = [
   { key: 'day', label: 'NGÀY' },
@@ -23,61 +20,40 @@ const DEV_TABS = [
   { key: 'month', label: 'THÁNG' },
 ];
 
-const DEVICE_DAY_BARS: BarDatum[] = [
-  ['00', 0.2, '00:00'],
-  ['03', 0.1, '03:00'],
-  ['06', 0.5, '06:00'],
-  ['09', 1.2, '09:00'],
-  ['12', 1.6, '12:00'],
-  ['15', 1.4, '15:00'],
-  ['18', 1.8, '18:00'],
-  ['21', 0.4, '21:00'],
-];
-
-const DEVICE_MONTH_BARS: BarDatum[] = [
-  ['1', 12.5, '1 đến 4/9'],
-  ['5', 15.2, '5 đến 8/9'],
-  ['9', 14.0, '9 đến 12/9'],
-  ['13', 16.8, '13 đến 16/9'],
-  ['17', 15.4, '17 đến 20/9'],
-  ['21', 17.2, '21 đến 24/9'],
-  ['25', 14.6, '25 đến 28/9'],
-  ['29', 11.2, '29 đến 30/9'],
-];
-
-const DEVICE_BARS_BY_TAB: Record<string, BarDatum[]> = {
-  day: DEVICE_DAY_BARS,
-  week: DEVICE_WEEK_BARS,
-  month: DEVICE_MONTH_BARS,
-};
-
-const DATE_LABELS: Record<string, string> = {
-  day: 'Hôm nay, 14 tháng 9',
-  week: 'Tuần 37 (08/09 - 14/09/2026)',
-  month: 'Tháng 09/2026',
-};
-
-const PERIOD_ESTIMATES: Record<string, { kwh: string; cost: string }> = {
-  day: { kwh: '7,2 kWh', cost: '17.136 đ' },
-  week: { kwh: '41,9 kWh', cost: '119.200 đ' },
-  month: { kwh: '118,5 kWh', cost: '282.030 đ' },
-};
+function duration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}p` : `${m}p`;
+}
 
 interface DeviceDetailScreenProps {
-  device?: BubbleDevice | null;
+  device: BubbleDevice;
   onBack?: () => void;
 }
 
-export function DeviceDetailScreen({
-  device: inputDevice,
-  onBack,
-}: DeviceDetailScreenProps = {}) {
+export function DeviceDetailScreen({ device: inputDevice, onBack }: DeviceDetailScreenProps) {
   const router = useRouter();
   const [unit, setUnit] = useState<'kwh' | 'cost'>('kwh');
-  const [activeTab, setActiveTab] = useState('week');
-  const [selectedBar, setSelectedBar] = useState(2);
+  const [activeTab, setActiveTab] = useState<UsageRange>('week');
+  const [offset, setOffset] = useState(0);
+  const [pickedBar, setPickedBar] = useState<number | null>(null);
 
-  const device = inputDevice ? getDeviceDetail(inputDevice) : DEVICE_DETAIL_AIRCON;
+  const { data, isError, refetch } = useDeviceUsage(inputDevice.id, activeTab, offset);
+
+  const chartItems: UsageChartItem[] = useMemo(() => {
+    if (!data) return [];
+    // cùng nhãn cột với trang Tiêu thụ; một thiết bị không chia bậc nên bỏ phần xếp chồng
+    return toChartItems(
+      activeTab,
+      data.buckets.map((b) => ({ ...b, previous_cost_vnd: null, segments: [] }))
+    ).map((item) => ({ ...item, tierSegments: undefined }));
+  }, [data, activeTab]);
+
+  const lastIndex = useMemo(() => {
+    const i = chartItems.map((c) => c.kwh).reduce((acc, k, idx) => (k > 0 ? idx : acc), 0);
+    return i;
+  }, [chartItems]);
+  const selectedBar = Math.min(pickedBar ?? lastIndex, Math.max(chartItems.length - 1, 0));
 
   const handleBack = () => {
     try {
@@ -90,10 +66,30 @@ export function DeviceDetailScreen({
     }
   };
 
-  const currentEstimate =
-    unit === 'kwh'
-      ? PERIOD_ESTIMATES[activeTab]?.kwh ?? '41,9 kWh'
-      : PERIOD_ESTIMATES[activeTab]?.cost ?? '119.200 đ';
+  const changeTab = (key: string) => {
+    setActiveTab(key as UsageRange);
+    setOffset(0);
+    setPickedBar(null);
+  };
+  const changeOffset = (next: number) => {
+    setOffset(next);
+    setPickedBar(null);
+  };
+
+  const runs = data?.runs ?? null;
+  const currentEstimate = data ? (unit === 'kwh' ? `${kwhText(data.kwh)} kWh` : `${vnd(data.cost_vnd)} đ`) : '–';
+  const dateLabel = data ? periodLabel(activeTab, data.period, offset) : '';
+  const stats = data
+    ? [
+        { label: 'Tổng điện tiêu thụ', value: `${kwhText(data.kwh)} kWh` },
+        { label: 'Tiền điện của thiết bị', value: `${vnd(data.cost_vnd)} đ` },
+        { label: 'Số lần bật', value: runs ? `${runs.count} lần` : 'Không xác định' },
+        { label: 'Tổng thời gian chạy', value: runs ? duration(runs.minutes) : 'Không xác định' },
+      ]
+    : [];
+  const meta = data
+    ? `${Math.round(data.share_pct)}% điện cả nhà${runs?.peak_power_w ? ` · ĐỈNH ${vnd(runs.peak_power_w)} W` : ''}`
+    : '';
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -141,103 +137,131 @@ export function DeviceDetailScreen({
         <View style={styles.identityBlock}>
           <View style={styles.deviceIconBox}>
             <ApplianceIcon
-              name={device.name}
-              id={device.id}
+              name={inputDevice.name}
+              id={inputDevice.id}
               size={32}
               color={WattPrintTokens.colors.primary}
             />
           </View>
-          <Text style={styles.deviceName}>{device.name}</Text>
-          <Text style={styles.deviceMeta}>{device.meta}</Text>
+          <Text style={styles.deviceName}>{inputDevice.name}</Text>
+          <Text style={styles.deviceMeta}>{meta}</Text>
         </View>
 
-        {/* Paired Stat Cards (1fr 1fr) */}
-        <View style={styles.pairedGrid}>
-          {/* Card 1: Average */}
-          <Card
-            className="border-0 shadow-none bg-white rounded-[20px] p-4 gap-1.5"
-            style={styles.statCard}>
-            <Text style={styles.statEyebrow}>CÔNG SUẤT TRUNG BÌNH</Text>
-            <View style={styles.statValueRow}>
-              <Text style={styles.statValue}>{device.avgW}</Text>
-              <Text style={styles.statUnit}>W</Text>
+        {!data ? (
+          <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
+            {isError ? (
+              <Pressable onPress={() => refetch()} accessibilityRole="button">
+                <Text style={styles.backBtn}>KHÔNG TẢI ĐƯỢC · THỬ LẠI</Text>
+              </Pressable>
+            ) : (
+              <ActivityIndicator color={WattPrintTokens.colors.primary} />
+            )}
+          </View>
+        ) : (
+          <>
+            {/* Paired Stat Cards (1fr 1fr) */}
+            <View style={styles.pairedGrid}>
+              {/* Card 1: Average */}
+              <Card
+                className="border-0 shadow-none bg-white rounded-[20px] p-4 gap-1.5"
+                style={styles.statCard}>
+                <Text style={styles.statEyebrow}>CÔNG SUẤT TRUNG BÌNH</Text>
+                <View style={styles.statValueRow}>
+                  <Text style={styles.statValue}>
+                    {runs?.avg_power_w ? vnd(runs.avg_power_w) : '–'}
+                  </Text>
+                  <Text style={styles.statUnit}>W</Text>
+                </View>
+                <Text style={styles.statLede}>khi đang bật</Text>
+              </Card>
+
+              {/* Card 2: Cost */}
+              <Card
+                className="border-0 shadow-none bg-white rounded-[20px] p-4 gap-1.5"
+                style={styles.statCard}>
+                <Text style={styles.statEyebrow}>CHI PHÍ</Text>
+                <View style={styles.statValueRow}>
+                  <Text style={styles.statValue}>{vnd(data.cost_vnd / 1000)}</Text>
+                  <Text style={styles.statUnit}>nghìn đồng</Text>
+                </View>
+                <Text style={styles.statLede}>trong kỳ đang xem</Text>
+              </Card>
             </View>
-            <Text style={styles.statLede}>khi đang bật</Text>
-          </Card>
 
-          {/* Card 2: Cost */}
-          <Card
-            className="border-0 shadow-none bg-white rounded-[20px] p-4 gap-1.5"
-            style={styles.statCard}>
-            <Text style={styles.statEyebrow}>CHI PHÍ</Text>
-            <View style={styles.statValueRow}>
-              <Text style={styles.statValue}>{device.costMonth}</Text>
-              <Text style={styles.statUnit}>nghìn/tháng</Text>
-            </View>
-            <Text style={styles.statLede}>theo mức dùng của bạn</Text>
-          </Card>
-        </View>
-
-        {/* Card 3: Usage Breakdown Card */}
-        <Card
-          className="border-0 shadow-none bg-white rounded-[20px] p-5 gap-3"
-          style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardEyebrow}>MỨC TIÊU THỤ</Text>
-          </View>
-
-          {/* Underline Range Tabs */}
-          <UnderlineTabRow
-            tabs={DEV_TABS}
-            activeKey={activeTab}
-            onChange={(key) => {
-              setActiveTab(key);
-              setSelectedBar(0);
-            }}
-            fullWidth={true}
-          />
-
-          {/* Date Context Navigator */}
-          <View style={styles.dateNavRow}>
-            <Pressable hitSlop={10} style={styles.dateNavBtn}>
-              <Text style={styles.dateNavChevron}>‹</Text>
-            </Pressable>
-            <Text style={styles.dateNavLabel}>
-              {DATE_LABELS[activeTab] || DATE_LABELS.week}
-            </Text>
-            <Pressable hitSlop={10} style={[styles.dateNavBtn, styles.dateNavBtnDisabled]}>
-              <Text style={[styles.dateNavChevron, styles.dateNavChevronDisabled]}>›</Text>
-            </Pressable>
-          </View>
-
-          {/* Period Summary Chip */}
-          <View style={styles.estimationBanner}>
-            <Text style={styles.estimationText}>
-              Ước tính cả kỳ:{' '}
-              <Text style={styles.estimationHighlight}>{currentEstimate}</Text>
-            </Text>
-          </View>
-
-          {/* Bar Chart with Numbers on Each Column */}
-          <UsageBarChart
-            bars={DEVICE_BARS_BY_TAB[activeTab] || DEVICE_WEEK_BARS}
-            selectedIndex={selectedBar}
-            onSelect={setSelectedBar}
-            height={140}
-            unitMode={unit}
-            showLegend={false}
-          />
-
-          {/* 4 Stat Rows */}
-          <View style={styles.statsList}>
-            {device.stats.map((st: { label: string; value: string }, idx: number) => (
-              <View key={idx} style={styles.statRow}>
-                <Text style={styles.statRowLabel}>{st.label}</Text>
-                <Text style={styles.statRowValue}>{st.value}</Text>
+            {/* Card 3: Usage Breakdown Card */}
+            <Card
+              className="border-0 shadow-none bg-white rounded-[20px] p-5 gap-3"
+              style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardEyebrow}>MỨC TIÊU THỤ</Text>
               </View>
-            ))}
-          </View>
-        </Card>
+
+              {/* Underline Range Tabs */}
+              <UnderlineTabRow
+                tabs={DEV_TABS}
+                activeKey={activeTab}
+                onChange={changeTab}
+                fullWidth={true}
+              />
+
+              {/* Date Context Navigator */}
+              <View style={styles.dateNavRow}>
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => changeOffset(offset - 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Kỳ trước"
+                  style={styles.dateNavBtn}>
+                  <Text style={styles.dateNavChevron}>‹</Text>
+                </Pressable>
+                <Text style={styles.dateNavLabel}>{dateLabel}</Text>
+                <Pressable
+                  hitSlop={10}
+                  disabled={offset >= 0}
+                  onPress={() => changeOffset(offset + 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Kỳ tiếp theo"
+                  style={[styles.dateNavBtn, offset >= 0 && styles.dateNavBtnDisabled]}>
+                  <Text style={[styles.dateNavChevron, offset >= 0 && styles.dateNavChevronDisabled]}>
+                    ›
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Period Summary Chip */}
+              <View style={styles.estimationBanner}>
+                <Text style={styles.estimationText}>
+                  Trong kỳ: <Text style={styles.estimationHighlight}>{currentEstimate}</Text>
+                  {data.delta_pct === null
+                    ? ''
+                    : ` (${data.delta_pct <= 0 ? 'giảm' : 'tăng'} ${Math.abs(Math.round(data.delta_pct))}% so với kỳ trước)`}
+                </Text>
+              </View>
+
+              {/* Bar Chart with Numbers on Each Column */}
+              <UsageBarChart
+                items={chartItems}
+                selectedIndex={selectedBar}
+                onSelect={setPickedBar}
+                height={140}
+                unitMode={unit}
+                showLegend={false}
+              />
+
+              {/* 4 Stat Rows */}
+              <View style={styles.statsList}>
+                {stats.map((st) => (
+                  <View key={st.label} style={styles.statRow}>
+                    <Text style={styles.statRowLabel}>{st.label}</Text>
+                    <Text style={styles.statRowValue}>{st.value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.statRowLabel}>{data.note}</Text>
+            </Card>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

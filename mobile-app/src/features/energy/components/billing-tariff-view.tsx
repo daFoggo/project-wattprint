@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import * as Haptics from 'expo-haptics';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import { TIER_COLORS } from '@/features/energy/usage-view';
 import { useBilling, type BillingOut, type Customer, type TouPeriod } from '@/features/energy/api';
 
 type Mode = 'tier' | 'tou';
@@ -10,7 +11,6 @@ type Mode = 'tier' | 'tou';
 /** Hộ sinh hoạt tính 6 bậc; đơn vị kinh doanh tính theo giờ (TOU). Nút chuyển để xem thử cả hai. */
 const CUSTOMER: Record<Mode, Customer> = { tier: 'household', tou: 'business' };
 
-const TIER_COLORS = ['#DEEEBD', '#B5E930', '#389E1E', '#164437', '#E5A93C', '#DC2626'];
 const TOU_COLORS: Record<TouPeriod, string> = {
   offpeak: '#7CC24C',
   normal: '#E5A93C',

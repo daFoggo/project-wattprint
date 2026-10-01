@@ -1830,6 +1830,340 @@
           }
         }
       }
+    },
+    "/api/v1/demo/usage": {
+      "get": {
+        "tags": [
+          "demo-usage"
+        ],
+        "summary": "Consumption and cost of a day, week or month",
+        "description": "The period of `asof` (or `offset` periods back) cut at `asof`: total kWh and cost, the same against the previous period over the same elapsed time, a forecast of the whole period, buckets for a bar chart (3 hours for a day, 1 day for a week or month; each with the previous period's bucket and how its kWh and cost fall in the tiers or time-of-use periods), the share and cost of every appliance, and a sentence about what changed. Bucket and appliance costs add up to the total.",
+        "operationId": "getDemoUsage",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "description": "`day`, `week` (Monday to Sunday) or `month` (calendar)",
+              "title": "Range"
+            },
+            "description": "`day`, `week` (Monday to Sunday) or `month` (calendar)"
+          },
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\": the period containing it is cut here. Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\": the period containing it is cut here. Default: the end of the recorded period"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 0,
+              "minimum": -60,
+              "description": "0 = the period of `asof`, -1 the one before, ...",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "0 = the period of `asof`, -1 the one before, ..."
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageOut"
+                }
+              }
+            },
+            "summary": "Usage of a period"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/usage/devices/{key}": {
+      "get": {
+        "tags": [
+          "demo-usage"
+        ],
+        "summary": "Consumption and cost of one appliance",
+        "description": "One appliance over the same period as `/demo/usage`: kWh, its part of the bill, share of the house, change against the previous period, how often and how long it ran, one bucket per 3 hours (day) or 1 day (week, month) and a sentence about it. `runs` is `null` for `Other`.",
+        "operationId": "getDemoDeviceUsage",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "Fridge",
+                "WashingMachine",
+                "Other"
+              ],
+              "type": "string",
+              "description": "Appliance key as in `/demo/breakdown`",
+              "title": "Key"
+            },
+            "description": "Appliance key as in `/demo/breakdown`"
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "description": "`day`, `week` (Monday to Sunday) or `month` (calendar)",
+              "title": "Range"
+            },
+            "description": "`day`, `week` (Monday to Sunday) or `month` (calendar)"
+          },
+          {
+            "name": "asof",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\"Now\": the period containing it is cut here. Default: the end of the recorded period",
+              "title": "Asof"
+            },
+            "description": "\"Now\": the period containing it is cut here. Default: the end of the recorded period"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 0,
+              "minimum": -60,
+              "description": "0 = the period of `asof`, -1 the one before, ...",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "0 = the period of `asof`, -1 the one before, ..."
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "household",
+                "business",
+                "production"
+              ],
+              "type": "string",
+              "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff",
+              "default": "household",
+              "title": "Customer"
+            },
+            "description": "`household` is billed on the 6-tier tariff; `business` and `production` on the time-of-use tariff"
+          },
+          {
+            "name": "voltage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "lt_6kv",
+                "6_22kv",
+                "22_110kv",
+                "ge_110kv"
+              ],
+              "type": "string",
+              "description": "Supply voltage (time-of-use customers only)",
+              "default": "lt_6kv",
+              "title": "Voltage"
+            },
+            "description": "Supply voltage (time-of-use customers only)"
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "legacy",
+                "qd963"
+              ],
+              "type": "string",
+              "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)",
+              "default": "legacy",
+              "title": "Hours"
+            },
+            "description": "Time-of-use hours: `legacy` is the schedule on bills since 2019, `qd963` the system schedule of QĐ 963/QĐ-BCT (22/04/2026)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceUsageOut"
+                }
+              }
+            },
+            "summary": "Usage of an appliance"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2381,7 +2715,7 @@
             "$ref": "#/components/schemas/Bill"
           },
           "forecast": {
-            "$ref": "#/components/schemas/Forecast"
+            "$ref": "#/components/schemas/app__schemas__billing__Forecast"
           },
           "tier": {
             "anyOf": [
@@ -2519,6 +2853,66 @@
           "totals"
         ],
         "title": "BreakdownOut"
+      },
+      "Bucket": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh",
+            "description": "`0` after `period.until`"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd"
+          },
+          "previous_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Kwh",
+            "description": "Same bucket of the previous period; `null` when that has no such bucket"
+          },
+          "previous_cost_vnd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Cost Vnd",
+            "description": "Its cost with VAT, priced as that whole period's bill"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "description": "Where the bucket's kWh and cost fall"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "kwh",
+          "cost_vnd",
+          "previous_kwh",
+          "previous_cost_vnd",
+          "segments"
+        ],
+        "title": "Bucket"
       },
       "BucketOut": {
         "properties": {
@@ -2692,6 +3086,42 @@
         ],
         "title": "DaySegment"
       },
+      "DeviceBucket": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd"
+          },
+          "previous_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "kwh",
+          "cost_vnd",
+          "previous_kwh"
+        ],
+        "title": "DeviceBucket"
+      },
       "DeviceCreate": {
         "properties": {
           "name": {
@@ -2769,6 +3199,159 @@
           "created_at"
         ],
         "title": "DeviceRead"
+      },
+      "DeviceRuns": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes",
+            "description": "Total minutes ON"
+          },
+          "avg_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Power W",
+            "description": "Mean power while ON"
+          },
+          "peak_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Power W"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "minutes",
+          "avg_power_w",
+          "peak_power_w"
+        ],
+        "title": "DeviceRuns"
+      },
+      "DeviceUsageOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "range": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Range"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodOut"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd"
+          },
+          "share_pct": {
+            "type": "number",
+            "title": "Share Pct",
+            "description": "Share of the whole-house energy of the period"
+          },
+          "previous_kwh": {
+            "type": "number",
+            "title": "Previous Kwh"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceRuns"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`null` for `Other`, the part no model covers"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceBucket"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "description": "Sentence about this appliance, from the data (Vietnamese)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "key",
+          "name",
+          "range",
+          "offset",
+          "period",
+          "kwh",
+          "cost_vnd",
+          "share_pct",
+          "previous_kwh",
+          "delta_pct",
+          "runs",
+          "buckets",
+          "note"
+        ],
+        "title": "DeviceUsageOut"
       },
       "DisaggregateIn": {
         "properties": {
@@ -3028,29 +3611,6 @@
         ],
         "title": "Finding"
       },
-      "Forecast": {
-        "properties": {
-          "kwh": {
-            "type": "number",
-            "title": "Kwh",
-            "description": "Whole month at the average pace so far"
-          },
-          "pace_kwh_per_day": {
-            "type": "number",
-            "title": "Pace Kwh Per Day"
-          },
-          "bill": {
-            "$ref": "#/components/schemas/Bill"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kwh",
-          "pace_kwh_per_day",
-          "bill"
-        ],
-        "title": "Forecast"
-      },
       "Household": {
         "properties": {
           "id": {
@@ -3239,6 +3799,46 @@
           "rows_per_device"
         ],
         "title": "ImportResult"
+      },
+      "Insight": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question",
+            "description": "Question the Copilot card offers (Vietnamese)"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "What changed since the previous period, from the data"
+          },
+          "appliance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AC",
+                  "WaterHeater",
+                  "Fridge",
+                  "WashingMachine",
+                  "Other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appliance",
+            "description": "Appliance the sentence is about"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "text",
+          "appliance"
+        ],
+        "title": "Insight"
       },
       "MixItem": {
         "properties": {
@@ -3487,6 +4087,39 @@
           "cost_vnd"
         ],
         "title": "PeriodLine"
+      },
+      "PeriodOut": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End",
+            "description": "Exclusive: where the whole period ends"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Until",
+            "description": "Exclusive: what the figures cover; equals `end` for a period that is over"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "until",
+          "complete"
+        ],
+        "title": "PeriodOut"
       },
       "PowerPair": {
         "properties": {
@@ -3844,6 +4477,48 @@
         ],
         "title": "ScheduleInfo"
       },
+      "Segment": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "`band-0`..`band-5` on 6 tiers; `offpeak`, `normal`, `peak` on time of use",
+            "examples": [
+              "band-2"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "examples": [
+              "Bậc 3"
+            ]
+          },
+          "price_vnd": {
+            "type": "integer",
+            "title": "Price Vnd",
+            "description": "VND/kWh before VAT"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd",
+            "description": "With VAT; the segments of a bucket add up to its cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "price_vnd",
+          "kwh",
+          "cost_vnd"
+        ],
+        "title": "Segment"
+      },
       "SeriesOut": {
         "properties": {
           "device_id": {
@@ -4198,6 +4873,132 @@
         ],
         "title": "TouSection"
       },
+      "UsageOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "range": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Range"
+          },
+          "offset": {
+            "type": "integer",
+            "maximum": 0.0,
+            "title": "Offset",
+            "description": "0 = the period of `asof`, -1 the one before, ..."
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodOut"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/PeriodOut",
+            "description": "Period before, cut at the same elapsed time"
+          },
+          "customer": {
+            "type": "string",
+            "title": "Customer"
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "tier",
+              "tou"
+            ],
+            "title": "Scheme"
+          },
+          "tariff": {
+            "$ref": "#/components/schemas/TariffInfo"
+          },
+          "kwh": {
+            "type": "number",
+            "title": "Kwh"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd",
+            "description": "With VAT"
+          },
+          "previous_kwh": {
+            "type": "number",
+            "title": "Previous Kwh"
+          },
+          "previous_cost_vnd": {
+            "type": "integer",
+            "title": "Previous Cost Vnd"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct",
+            "description": "kWh against the previous period; `null` if that had no data"
+          },
+          "forecast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/app__schemas__usage__Forecast"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`null` for a period that is over"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "3 hours (day) or 1 day (week, month)"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/EnergyShare"
+            },
+            "type": "array",
+            "title": "Devices",
+            "description": "Largest first; `cost_vnd` adds up to the cost"
+          },
+          "insight": {
+            "$ref": "#/components/schemas/Insight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "range",
+          "offset",
+          "period",
+          "previous",
+          "customer",
+          "scheme",
+          "tariff",
+          "kwh",
+          "cost_vnd",
+          "previous_kwh",
+          "previous_cost_vnd",
+          "delta_pct",
+          "forecast",
+          "buckets",
+          "devices",
+          "insight"
+        ],
+        "title": "UsageOut"
+      },
       "ValidationProblem": {
         "additionalProperties": true,
         "properties": {
@@ -4297,6 +5098,48 @@
           "bucket"
         ],
         "title": "Window"
+      },
+      "app__schemas__billing__Forecast": {
+        "properties": {
+          "kwh": {
+            "type": "number",
+            "title": "Kwh",
+            "description": "Whole month at the average pace so far"
+          },
+          "pace_kwh_per_day": {
+            "type": "number",
+            "title": "Pace Kwh Per Day"
+          },
+          "bill": {
+            "$ref": "#/components/schemas/Bill"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kwh",
+          "pace_kwh_per_day",
+          "bill"
+        ],
+        "title": "Forecast"
+      },
+      "app__schemas__usage__Forecast": {
+        "properties": {
+          "kwh": {
+            "type": "number",
+            "title": "Kwh",
+            "description": "Whole period if consumption continues at the pace so far"
+          },
+          "cost_vnd": {
+            "type": "integer",
+            "title": "Cost Vnd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kwh",
+          "cost_vnd"
+        ],
+        "title": "Forecast"
       }
     }
   },
@@ -4327,6 +5170,13 @@
       "parent": "demo",
       "kind": "nav",
       "summary": "Billing"
+    },
+    {
+      "name": "demo-usage",
+      "description": "A day, week or month of consumption with its cost, and one appliance of it.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Usage"
     },
     {
       "name": "demo-insights",

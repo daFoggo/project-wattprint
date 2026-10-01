@@ -6,6 +6,8 @@ export default function DeviceDetailRoute() {
   const router = useRouter();
   const { activeDeviceDetail, setActiveDeviceDetail } = useEnergyStore();
 
+  if (!activeDeviceDetail) return null;
+
   return (
     <DeviceDetailScreen
       device={activeDeviceDetail}

@@ -46,8 +46,6 @@ interface EnergyStoreValue {
   setBreakdownView: (view: BreakdownView) => void;
   selectedDeviceIndex: number;
   setSelectedDeviceIndex: (index: number) => void;
-  selectedUsageBar: number;
-  setSelectedUsageBar: (index: number) => void;
   activeDeviceDetail: BubbleDevice | null;
   setActiveDeviceDetail: (device: BubbleDevice | null) => void;
   customerType: CustomerType;
@@ -60,6 +58,8 @@ interface EnergyStoreValue {
   activeThreadId: string | null;
   setActiveThreadId: (id: string | null) => void;
   createThread: (title?: string) => string;
+  /** Mở cuộc hội thoại mới với câu hỏi và lời giải đáp dựng sẵn từ số liệu. */
+  openInsightThread: (question: string, answer: string) => void;
   sendChatMessageToThread: (threadId: string, text: string) => void;
   chatMessages: ChatMessage[];
   sendChatMessage: (query: string) => void;
@@ -85,7 +85,6 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
   const [usageTab, setUsageTab] = useState<UsageTab>('week');
   const [breakdownView, setBreakdownView] = useState<BreakdownView>('bubble');
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
-  const [selectedUsageBar, setSelectedUsageBar] = useState<number>(3);
   const [activeDeviceDetail, setActiveDeviceDetail] = useState<BubbleDevice | null>(null);
   const [customerType, setCustomerType] = useState<CustomerType>('home');
   const [chartBreakdown, setChartBreakdown] = useState<'tou' | 'tier'>('tier');
@@ -149,6 +148,25 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
     setThreads((prev) => [newThread, ...prev]);
     setActiveThreadId(newId);
     return newId;
+  }, []);
+
+  const openInsightThread = useCallback((question: string, answer: string) => {
+    const id = `thread-${Date.now()}`;
+    const thread: ChatThread = {
+      id,
+      title: question,
+      category: 'TIÊU THỤ',
+      period: 'KỲ NÀY',
+      timeAgo: 'Vừa xong',
+      group: 'today',
+      dotColor: '#B5E930',
+      messages: [
+        { id: `${id}-q`, who: 'me', text: question },
+        { id: `${id}-a`, who: 'ai', text: answer, facts: [] },
+      ],
+    };
+    setThreads((prev) => [thread, ...prev]);
+    setActiveThreadId(id);
   }, []);
 
   const sendChatMessageToThread = useCallback((threadId: string, text: string) => {
@@ -328,8 +346,6 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
       setBreakdownView,
       selectedDeviceIndex,
       setSelectedDeviceIndex,
-      selectedUsageBar,
-      setSelectedUsageBar,
       activeDeviceDetail,
       setActiveDeviceDetail,
       customerType,
@@ -340,6 +356,7 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
       activeThreadId,
       setActiveThreadId,
       createThread,
+      openInsightThread,
       sendChatMessageToThread,
       chatMessages,
       sendChatMessage,
@@ -360,13 +377,13 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
       usageTab,
       breakdownView,
       selectedDeviceIndex,
-      selectedUsageBar,
       activeDeviceDetail,
       customerType,
       chartBreakdown,
       threads,
       activeThreadId,
       createThread,
+      openInsightThread,
       sendChatMessageToThread,
       chatMessages,
       sendChatMessage,
