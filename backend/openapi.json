@@ -1709,7 +1709,7 @@
           "demo-insights"
         ],
         "summary": "Alerts for the day so far",
-        "description": "Short Vietnamese sentences worth the customer's attention at `asof`: the day against the same hours yesterday, how close the month is to the next tier (or the peak share of a time-of-use customer), the month forecast, a long air-conditioner run and an appliance that takes a large share of the day. Newest first. Without `asof`: the end of the recorded period.",
+        "description": "Short Vietnamese sentences worth the customer's attention at `asof`: the day against the same hours yesterday, how close the month is to the next tier (or the peak share of a time-of-use customer), the month forecast, a long air-conditioner run and an appliance that takes a large share of the day. Most important first, at most `limit` (default 3), never two about the same appliance. Without `asof`: the end of the recorded period.",
         "operationId": "listDemoAlerts",
         "parameters": [
           {
@@ -1730,6 +1730,20 @@
               "title": "Asof"
             },
             "description": "Day so far is computed up to here"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "description": "Most alerts to return",
+              "default": 3,
+              "title": "Limit"
+            },
+            "description": "Most alerts to return"
           },
           {
             "name": "customer",
@@ -2204,6 +2218,16 @@
             "title": "Text",
             "description": "Sentence in Vietnamese, built from the figures of the window"
           },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "event",
+              "day",
+              "month"
+            ],
+            "title": "Scope",
+            "description": "`event`: happened at `at`; `day`: about today so far; `month`: about the billing month. Show a clock time only for `event`"
+          },
           "appliance": {
             "anyOf": [
               {
@@ -2228,7 +2252,8 @@
           "code",
           "tone",
           "at",
-          "text"
+          "text",
+          "scope"
         ],
         "title": "AlertOut"
       },
@@ -2251,7 +2276,7 @@
             },
             "type": "array",
             "title": "Items",
-            "description": "Newest first"
+            "description": "Most important first, at most `limit`"
           }
         },
         "type": "object",
@@ -3310,6 +3335,11 @@
             ],
             "title": "Delta Pct"
           },
+          "average_power_w": {
+            "type": "number",
+            "title": "Average Power W",
+            "description": "Energy over the elapsed time of the period, W"
+          },
           "runs": {
             "anyOf": [
               {
@@ -3320,6 +3350,14 @@
               }
             ],
             "description": "`null` for `Other`, the part no model covers"
+          },
+          "recent_runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunOut"
+            },
+            "type": "array",
+            "title": "Recent Runs",
+            "description": "Latest runs of the period, newest first"
           },
           "buckets": {
             "items": {
@@ -3347,7 +3385,9 @@
           "share_pct",
           "previous_kwh",
           "delta_pct",
+          "average_power_w",
           "runs",
+          "recent_runs",
           "buckets",
           "note"
         ],

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.billing import Scheme, TariffInfo
 from app.schemas.demo import ApplianceKey, EnergyShare
+from app.schemas.insights import RunOut
 
 Range = Literal["day", "week", "month"]
 
@@ -97,7 +98,9 @@ class DeviceUsageOut(BaseModel):
     share_pct: float = Field(description="Share of the whole-house energy of the period")
     previous_kwh: float
     delta_pct: float | None
+    average_power_w: float = Field(description="Energy over the elapsed time of the period, W")
     runs: DeviceRuns | None = Field(
         description="`null` for `Other`, the part no model covers")
+    recent_runs: list[RunOut] = Field(description="Latest runs of the period, newest first")
     buckets: list[DeviceBucket]
     note: str = Field(description="Sentence about this appliance, from the data (Vietnamese)")

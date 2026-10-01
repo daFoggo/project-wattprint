@@ -91,16 +91,16 @@ async def test_household_alerts(client):
     r = await get(client, "alerts", asof=NOW)
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    codes = [a["code"] for a in items]
-    assert "tier_approaching" in codes or "tier_headroom" in codes
-    assert "month_forecast" in codes and "tou_peak_share" not in codes
-    assert [a["at"] for a in items] == sorted((a["at"] for a in items), reverse=True)
+    assert len(items) <= 3  # a dashboard card, not a feed
+    assert all(a["scope"] in ("event", "day", "month") for a in items)
+    appliances = [a["appliance"] for a in items if a["appliance"]]
+    assert len(appliances) == len(set(appliances))  # never two sentences about one appliance
     assert all(a["tone"] in ("warning", "info", "good") and a["text"] for a in items)
 
 
 @pytestmark_db
 async def test_business_alerts_talk_about_the_peak(client):
-    items = (await get(client, "alerts", asof=NOW, customer="business")).json()["items"]
+    items = (await get(client, "alerts", asof=NOW, customer="business", limit=10)).json()["items"]
     codes = [a["code"] for a in items]
     assert "tou_peak_share" in codes and not {"tier_approaching", "tier_headroom"} & set(codes)
 
@@ -109,3 +109,16 @@ async def test_business_alerts_talk_about_the_peak(client):
 async def test_alerts_default_to_the_end_of_the_period(client):
     r = await get(client, "alerts")
     assert r.status_code == 200 and r.json()["items"]
+
+
+@pytestmark_db
+async def test_alerts_limit_and_importance(client):
+    five = (await get(client, "alerts", asof=NOW, limit=10)).json()["items"]
+    codes = [a["code"] for a in five]
+    assert "tier_approaching" in codes or "tier_headroom" in codes
+    assert "tou_peak_share" not in codes
+    assert len(five) > 3
+    top = (await get(client, "alerts", asof=NOW, limit=1)).json()["items"]
+    assert top[0]["code"] == five[0]["code"]
+    # a summary of the day or month has no clock time of its own
+    assert {a["code"]: a["scope"] for a in five}.get("month_forecast") == "month"

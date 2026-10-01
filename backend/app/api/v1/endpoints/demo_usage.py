@@ -25,6 +25,7 @@ RANGE = Query(..., description="`day`, `week` (Monday to Sunday) or `month` (cal
 ASOF = Query(None, description="\"Now\": the period containing it is cut here. Default: the end "
                                "of the recorded period")
 OFFSET = Query(0, le=0, ge=-60, description="0 = the period of `asof`, -1 the one before, ...")
+RECENT_RUNS = 5
 ApplianceKey = Literal["AC", "WaterHeater", "Fridge", "WashingMachine", "Other"]
 
 
@@ -141,7 +142,7 @@ async def get_device_usage(
     before_kwh = sum(svc.appliance_buckets(before.rows, prev, key, plan)[0])
     house = now.cost.kwh
 
-    runs = None
+    runs, recent = None, []
     if key != "Other":
         found = insights_svc.find_runs(
             (await insights_svc.minute_power(session, hid, cur.start, cur.until)).get(key, []))
@@ -151,13 +152,18 @@ async def get_device_usage(
             count=len(found), minutes=minutes,
             avg_power_w=round(on_kwh * 1000 / (minutes / 60)) if minutes else None,
             peak_power_w=round(max((r.peak_w for r in found), default=0)) or None)
+        recent = [s.RunOut(start=r.start, end=r.end, minutes=r.minutes,
+                           energy_kwh=round(r.energy_wh / 1000, 3), peak_power_w=round(r.peak_w))
+                  for r in reversed(found[-RECENT_RUNS:])]
 
     note = _note(name, kwh, before_kwh, house, runs, plan, key, total_cost)
     return s.DeviceUsageOut(
         household_id=hid, key=key, name=name, range=range, offset=offset, period=_period(cur),
         kwh=round(kwh, 3), cost_vnd=total_cost,
         share_pct=round(100 * kwh / house, 2) if house else 0.0,
-        previous_kwh=round(before_kwh, 3), delta_pct=_pct(kwh, before_kwh), runs=runs,
+        previous_kwh=round(before_kwh, 3), delta_pct=_pct(kwh, before_kwh),
+        average_power_w=round(kwh * 1000 / (cur.elapsed / timedelta(hours=1))), runs=runs,
+        recent_runs=recent,
         buckets=[s.DeviceBucket(
             start=cur.start + i * cur.step, kwh=round(k, 3), cost_vnd=costs[i],
             previous_kwh=round(prev_kwh_b[i], 3) if i < len(prev_kwh_b) else None)

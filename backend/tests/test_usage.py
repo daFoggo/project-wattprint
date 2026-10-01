@@ -101,8 +101,14 @@ async def test_device_usage(client):
     assert j["kwh"] == pytest.approx(ac["energy_kwh"], abs=0.01)
     assert sum(b["cost_vnd"] for b in j["buckets"]) == j["cost_vnd"]
     assert j["runs"]["count"] > 0 and j["runs"]["avg_power_w"] > 0 and j["note"]
+    assert 0 < len(j["recent_runs"]) <= 5
+    starts = [r["start"] for r in j["recent_runs"]]
+    assert starts == sorted(starts, reverse=True)
+    hours = (datetime.fromisoformat(j["period"]["until"])
+             - datetime.fromisoformat(j["period"]["start"])).total_seconds() / 3600
+    assert j["average_power_w"] == pytest.approx(j["kwh"] * 1000 / hours, abs=1)
     other = (await get(client, "usage/devices/Other", range="day", asof=NOW)).json()
-    assert other["runs"] is None
+    assert other["runs"] is None and other["recent_runs"] == [] and other["average_power_w"] > 0
 
 
 @pytestmark_db

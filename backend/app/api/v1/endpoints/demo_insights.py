@@ -74,18 +74,21 @@ async def get_timeline(
     description="Short Vietnamese sentences worth the customer's attention at `asof`: the day "
                 "against the same hours yesterday, how close the month is to the next tier (or the "
                 "peak share of a time-of-use customer), the month forecast, a long air-conditioner "
-                "run and an appliance that takes a large share of the day. Newest first. "
+                "run and an appliance that takes a large share of the day. Most important first, at "
+                "most `limit` (default 3), never two about the same appliance. "
                 "Without `asof`: the end of the recorded period.",
     responses={200: {"summary": "Alerts"}, 404: NOT_READY, 422: INVALID},
 )
 async def list_alerts(
     asof: datetime | None = Query(None, description="Day so far is computed up to here"),
+    limit: int = Query(svc.MAX_ALERTS, ge=1, le=10, description="Most alerts to return"),
     plan: Plan = Depends(plan_params),
     session: AsyncSession = Depends(get_session),
 ):
     asof = _utc(asof) if asof else _period_end()
     hid = await _hid(session)
-    found = await svc.alerts(session, hid, asof, plan, _names())
+    found = await svc.alerts(session, hid, asof, plan, _names(), limit)
     return s.AlertsOut(household_id=hid, asof=asof, items=[
-        s.AlertOut(code=a.code, tone=a.tone, at=a.at, text=a.text, appliance=a.appliance)
+        s.AlertOut(code=a.code, tone=a.tone, at=a.at, text=a.text, scope=a.scope,
+                   appliance=a.appliance)
         for a in found])

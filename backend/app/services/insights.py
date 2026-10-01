@@ -8,7 +8,7 @@ endpoints.
 """
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
@@ -24,6 +24,16 @@ LONG_RUN_MIN = 120  # an air conditioner running this long without a break is wo
 DAY_DELTA_PCT = 10
 SHARE_PCT = 30
 PEAK_SHARE_PCT = 30
+MAX_ALERTS = 3  # more than this is noise on a dashboard card
+
+SCOPES = {"long_run": "event", "day_vs_yesterday": "day", "big_share": "day"}  # others: month
+# How much a sentence deserves the customer's attention: warnings first, then what happened
+# today, then the month outlook.
+PRIORITY = {("tier_approaching", "warning"): 100, ("tou_peak_share", "warning"): 100,
+            ("day_vs_yesterday", "warning"): 90, ("long_run", "info"): 70,
+            ("day_vs_yesterday", "good"): 60, ("tier_headroom", "info"): 50,
+            ("big_share", "info"): 40, ("month_forecast", "info"): 30,
+            ("tou_peak_share", "good"): 30}
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,7 @@ class Alert:
     at: datetime
     text: str
     appliance: str | None = None
+    scope: str = "day"  # event: happened at `at` | day: about today | month: about the month
 
 
 def _vn(x: float, digits: int = 0) -> str:
@@ -104,8 +115,23 @@ def _duration(minutes: int) -> str:
     return f"{h} giờ {m:02d} phút" if h else f"{m} phút"
 
 
+def pick(found: list[Alert], limit: int) -> list[Alert]:
+    """The few alerts worth showing: no two about the same appliance, most important first."""
+    scoped = [replace(a, scope=SCOPES.get(a.code, "month")) for a in found]
+    ranked = sorted(scoped, key=lambda a: (PRIORITY.get((a.code, a.tone), 0), a.at), reverse=True)
+    out: list[Alert] = []
+    seen: set[str] = set()
+    for a in ranked:
+        if a.appliance and a.appliance in seen:
+            continue  # e.g. "AC ran 3 h" already says AC is the story: skip "AC is 32 % of today"
+        if a.appliance:
+            seen.add(a.appliance)
+        out.append(a)
+    return out[:limit]
+
+
 async def alerts(session: AsyncSession, hid: uuid.UUID, asof: datetime, plan: Plan,
-                 names: dict[str, str]) -> list[Alert]:
+                 names: dict[str, str], limit: int = MAX_ALERTS) -> list[Alert]:
     day = datetime(asof.year, asof.month, asof.day, tzinfo=UTC)
     prev_day, prev_end = day - timedelta(days=1), asof - timedelta(days=1)
     out: list[Alert] = []
@@ -177,4 +203,4 @@ async def alerts(session: AsyncSession, hid: uuid.UUID, asof: datetime, plan: Pl
                     "big_share", "info", asof,
                     f"{names.get(key, key)} chiếm {pct}% điện hôm nay "
                     f"({_vn(wh[key], 1)} kWh).", key))
-    return sorted(out, key=lambda a: a.at, reverse=True)
+    return pick(out, limit)

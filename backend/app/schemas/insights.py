@@ -12,18 +12,24 @@ AlertCode = Literal["day_vs_yesterday", "tier_approaching", "tier_headroom", "to
                     "month_forecast", "long_run", "big_share"]
 
 
+Scope = Literal["event", "day", "month"]
+
+
 class AlertOut(BaseModel):
     code: AlertCode = Field(description="Rule that raised it, stable for the app")
     tone: Tone
     at: datetime = Field(description="When it applies (UTC clock of the dataset)")
     text: str = Field(description="Sentence in Vietnamese, built from the figures of the window")
+    scope: Scope = Field(description="`event`: happened at `at`; `day`: about today so far; "
+                                     "`month`: about the billing month. Show a clock time only "
+                                     "for `event`")
     appliance: ApplianceKey | None = None
 
 
 class AlertsOut(BaseModel):
     household_id: uuid.UUID
     asof: datetime = Field(description="Alerts are computed from the start of this day up to here")
-    items: list[AlertOut] = Field(description="Newest first")
+    items: list[AlertOut] = Field(description="Most important first, at most `limit`")
 
 
 class RunOut(BaseModel):
