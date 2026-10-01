@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useDeferredValue, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
+import { QueryBoundary } from '@/components/common/query-boundary';
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import { BillingBodySkeleton } from '@/features/energy/components/billing-skeletons';
 import { TIER_COLORS } from '@/features/energy/usage-view';
 import { useBilling, type BillingOut, type Customer, type TouPeriod } from '@/features/energy/api';
 
@@ -38,55 +40,63 @@ function tierAdvice(b: NonNullable<BillingOut['tier']>, pace: number, month: num
   return `Bạn đang ở ${s.band_name} với mức dự phòng ${Math.round(s.headroom_kwh)} kWh. ${s.next_band_name} (${vnd(price)} đ/kWh)${step}. ${cross}`;
 }
 
-export function BillingTariffView({ hideChart = false }: { hideChart?: boolean }) {
-  const [billingMode, setBillingMode] = useState<Mode>('tier');
-  const { data, isError, refetch } = useBilling(CUSTOMER[billingMode]);
+const MODES: Mode[] = ['tier', 'tou'];
 
-  const handleModeChange = (mode: Mode) => {
-    try {
-      Haptics.selectionAsync();
-    } catch {}
-    setBillingMode(mode);
-  };
-
-  const modeSwitcher = (
+function ModeSwitcher({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
+  return (
     <View style={styles.pillTrack}>
-      {(['tier', 'tou'] as const).map((mode) => (
+      {MODES.map((m) => (
         <Pressable
-          key={mode}
-          onPress={() => handleModeChange(mode)}
+          key={m}
+          onPress={() => {
+            try {
+              Haptics.selectionAsync();
+            } catch {}
+            onChange(m);
+          }}
           accessibilityRole="button"
-          accessibilityLabel={mode === 'tier' ? 'Xem theo 6 bậc thang EVN' : 'Xem theo giờ dùng TOU'}
-          style={[styles.pillItem, billingMode === mode && styles.pillItemActive]}>
-          <Text style={[styles.pillText, billingMode === mode && styles.pillTextActive]}>
-            {mode === 'tier' ? '6 BẬC' : 'TOU'}
+          accessibilityLabel={m === 'tier' ? 'Xem theo 6 bậc thang EVN' : 'Xem theo giờ dùng TOU'}
+          style={[styles.pillItem, mode === m && styles.pillItemActive]}>
+          <Text style={[styles.pillText, mode === m && styles.pillTextActive]}>
+            {m === 'tier' ? '6 BẬC' : 'TOU'}
           </Text>
         </Pressable>
       ))}
     </View>
   );
+}
 
-  if (!data || data.scheme !== billingMode) {
-    return (
-      <View style={styles.container}>
-        <View style={[styles.card, { alignItems: 'center' }]}>
-          <View style={[styles.cardHeader, { alignSelf: 'stretch', justifyContent: 'flex-end' }]}>
-            {modeSwitcher}
-          </View>
-          {isError ? (
-            <>
-              <Text style={styles.sentenceSmall}>Không tải được dữ liệu hóa đơn.</Text>
-              <Pressable onPress={() => refetch()} accessibilityRole="button">
-                <Text style={styles.eyebrow}>THỬ LẠI</Text>
-              </Pressable>
-            </>
-          ) : (
-            <ActivityIndicator color={WattPrintTokens.colors.primary} />
-          )}
-        </View>
-      </View>
-    );
-  }
+/**
+ * Trang hóa đơn: nút chuyển 6 bậc / TOU nằm ngoài ranh giới Suspense nên luôn phản hồi ngay; phần số
+ * liệu tự tải và hiện skeleton khi chưa có.
+ */
+export function BillingTariffView({ hideChart = false }: { hideChart?: boolean }) {
+  const [mode, setMode] = useState<Mode>('tier');
+  // nút sáng ngay, số liệu đổi sau khi tải xong; trong lúc chờ nội dung cũ mờ đi (không nháy skeleton)
+  const deferredMode = useDeferredValue(mode);
+  const switcher = <ModeSwitcher mode={mode} onChange={setMode} />;
+
+  return (
+    <View style={[styles.container, deferredMode !== mode && { opacity: 0.55 }]}>
+      <QueryBoundary
+        fallback={<BillingBodySkeleton switcher={switcher} />}
+        errorMessage="Không tải được dữ liệu hóa đơn.">
+        <BillingTariffBody mode={deferredMode} switcher={switcher} hideChart={hideChart} />
+      </QueryBoundary>
+    </View>
+  );
+}
+
+function BillingTariffBody({
+  mode: billingMode,
+  switcher: modeSwitcher,
+  hideChart,
+}: {
+  mode: Mode;
+  switcher: React.ReactNode;
+  hideChart: boolean;
+}) {
+  const { data } = useBilling(CUSTOMER[billingMode]);
 
   const { tier, tou } = data;
   const days = Math.round(data.days_elapsed);
@@ -100,7 +110,7 @@ export function BillingTariffView({ hideChart = false }: { hideChart?: boolean }
   const chartHeight = 105;
 
   return (
-    <View style={styles.container}>
+    <>
       {/* 1. BILL TO DATE & FORECAST CARD */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -289,7 +299,7 @@ export function BillingTariffView({ hideChart = false }: { hideChart?: boolean }
           <Text style={styles.vatValue}>{totalCostDisplay} VND</Text>
         </View>
       </View>
-    </View>
+    </>
   );
 }
 

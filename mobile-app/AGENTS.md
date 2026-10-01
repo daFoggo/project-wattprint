@@ -56,3 +56,41 @@ feature and update imports. Do not pre-place single-consumer UI in a feature.
 - Platform-specific files use `.web` / `.native` / `.ios` / `.android`.
 - Add a page by creating `src/screens/<page>/` plus a matching `src/app/<page>.tsx` re-export; add a
   feature by creating `src/features/<name>/`.
+
+## Loading, Error & Code-Splitting (adapted from the web app's 4 tiers)
+
+Expo Router has no route `loader`, so data is fetched **by the section that shows it** and every
+section owns its own Suspense + error boundary. A page is a static shell plus independent sections.
+
+- **Data**: `queryOptions` factories in `features/<f>/api.ts`; sections read them with
+  `useSuspenseQuery` (hooks `useUsage`, `useDeviceUsage`, `useBilling`, ...). Do not use `enabled` or
+  `placeholderData` with them. Persisted cache: bump `CACHE_VERSION` in `providers/query-provider.tsx`
+  whenever an API response changes shape.
+- **Tier 1, route**: a route file may export `SuspenseFallback` (page skeleton) and `ErrorBoundary`
+  (re-export from `expo-router`). Shown while the screen module loads; async routes are dev-only on
+  native (Metro does not split native production bundles), so this is a dev/startup nicety, not a
+  network chunk.
+- **Tier 2, section**: wrap each independent section in `<QueryBoundary fallback={<XSkeleton />}>`
+  (`components/common/query-boundary.tsx`): skeleton while loading, `SectionError` with a retry button
+  on failure. Sections load in parallel and fail separately.
+- **Tier 3, skeletons**: built from `components/common/skeleton.tsx` (`Skeleton`, `SkeletonCircle`),
+  sized like the real content so nothing jumps; keep them in `screens/<page>/components/*-skeletons.tsx`
+  (or next to the feature component they stand in for).
+- **Tier 4, refetch / switching ranges**: urgent state (tab highlight) updates at once, the data key
+  uses `useDeferredValue`, so the old content stays on screen (dimmed to 55 %) until the new one is
+  ready. Never swap loaded content for a skeleton on a range change.
+- **Splitting**: below-the-fold or on-demand pieces are `React.lazy(() => import(...))` inside a
+  `QueryBoundary` whose fallback is that piece's skeleton (e.g. usage comparison card, device detail
+  overlay). One section per file: `screens/<page>/components/<name>-section.tsx`.
+- Prefetch the ranges a user is likely to open next with `queryClient.prefetchQuery(xQueryOptions(...))`.
+
+## Page transitions
+
+- Tabs are `NativeTabs` (native switch, nothing to animate in JS). Drill-down pages are **screens of a
+  native `Stack`**, never JS overlays: `account/_layout.tsx` and `usage/_layout.tsx` use
+  `animation: 'ios_from_right'`, `fullScreenGestureEnabled` (swipe back anywhere), and
+  `freezeOnBlur` (covered screen stops rendering). Set `unstable_settings.initialRouteName` so a deep
+  push still has a screen to go back to.
+- Before `router.push`, warm what the next page needs so it has content when the animation ends:
+  `void import('<screen module>')` and `queryClient.prefetchQuery(...)`. Pass only view state
+  (range, offset) as route params; the chosen entity travels in the energy store.

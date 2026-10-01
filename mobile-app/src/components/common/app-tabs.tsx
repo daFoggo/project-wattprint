@@ -1,27 +1,9 @@
-import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import React from 'react';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import { useEnergyStore } from '@/features/energy/use-energy-store';
 
 export default function AppTabs() {
-  const { setActiveDeviceDetail } = useEnergyStore();
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-
-    const handleWebTabClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement)?.closest('[role="tab"]');
-      if (target && target.textContent?.includes('Tiêu thụ')) {
-        setActiveDeviceDetail(null);
-      }
-    };
-
-    window.addEventListener('click', handleWebTabClick, true);
-    return () => window.removeEventListener('click', handleWebTabClick, true);
-  }, [setActiveDeviceDetail]);
-
   return (
     <NativeTabs
       backgroundColor="#FFFFFF"

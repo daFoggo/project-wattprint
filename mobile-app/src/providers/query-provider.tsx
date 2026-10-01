@@ -11,6 +11,10 @@ import { AppState, AppStateStatus, Platform } from 'react-native';
 
 const ONE_WEEK = 1000 * 60 * 60 * 24 * 7;
 
+// Đổi chuỗi này mỗi khi hình dạng phản hồi của API thay đổi: cache cũ trên máy bị bỏ thay vì đưa vào
+// màn hình dữ liệu thiếu trường (vd. chi tiết thiết bị đọc `recent_runs` của bản cũ chưa có).
+const CACHE_VERSION = '3';
+
 export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -52,6 +56,7 @@ const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: 'wat
 const persistOptions = {
   persister,
   maxAge: ONE_WEEK,
+  buster: CACHE_VERSION,
   dehydrateOptions: {
     shouldDehydrateQuery: (query: { queryKey: readonly unknown[]; state: { status: string } }) =>
       query.state.status === 'success' && query.queryKey[0] === energyKeys.all[0],

@@ -146,14 +146,17 @@ export function UsageBarChart({
               hitSlop={4}
               style={styles.barColumn}>
               {/* Value Label on Top of Bar */}
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.barValueText,
-                  isSelected && styles.barValueTextActive,
-                ]}>
-                {dense && !isSelected ? '' : formattedVal}
-              </Text>
+              <View style={dense ? styles.denseTextBox : undefined}>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.barValueText,
+                    dense && styles.denseText,
+                    isSelected && styles.barValueTextActive,
+                  ]}>
+                  {dense && !isSelected ? '' : formattedVal}
+                </Text>
+              </View>
 
               {/* Stacked Bar SVG */}
               <View
@@ -227,14 +230,18 @@ export function UsageBarChart({
               </View>
 
               {/* Bar Label */}
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.barLabel,
-                  isSelected && styles.barLabelActive,
-                ]}>
-                {item.label}
-              </Text>
+              <View style={dense ? styles.denseTextBox : undefined}>
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                  style={[
+                    styles.barLabel,
+                    dense && styles.denseText,
+                    isSelected && styles.barLabelActive,
+                  ]}>
+                  {item.label}
+                </Text>
+              </View>
             </Pressable>
           );
         })}
@@ -268,6 +275,16 @@ const styles = StyleSheet.create({
     gap: 6,
     width: '100%',
     paddingTop: 6,
+  },
+  // cột quá hẹp (biểu đồ tháng): chữ rộng hơn cột, căn giữa theo cột và không bị cắt thành "…"
+  denseTextBox: {
+    width: 0,
+    alignItems: 'center',
+    height: 16,
+  },
+  denseText: {
+    width: 36,
+    textAlign: 'center',
   },
   barColumn: {
     flex: 1,

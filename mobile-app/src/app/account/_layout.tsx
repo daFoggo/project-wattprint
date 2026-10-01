@@ -1,12 +1,21 @@
 import { Stack } from 'expo-router';
 
+import { WattPrintTokens } from '@/constants/theme';
+
 export default function AccountLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#F2F4ED' },
-      }}>
+        contentStyle: {
+          backgroundColor: WattPrintTokens.colors.neutralGround,
+        },
+        animation: 'ios_from_right',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        freezeOnBlur: true,
+      }}
+    >
       <Stack.Screen name="index" />
       <Stack.Screen name="billing" />
     </Stack>

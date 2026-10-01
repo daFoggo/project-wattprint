@@ -1,5 +1,4 @@
-import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
-import { useIsFocused } from 'expo-router';
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 
 import { apiClient } from '@/lib/api-client';
 
@@ -81,11 +80,10 @@ export const billingQueryOptions = (customer: Customer) =>
       apiClient.get<BillingOut>('/demo/billing', {
         params: { month: DEMO_MONTH, asof: new Date(DEMO_NOW).toISOString(), customer },
       }),
-    placeholderData: keepPreviousData,
   });
 
 export function useBilling(customer: Customer) {
-  return useQuery({ ...billingQueryOptions(customer), subscribed: useIsFocused() });
+  return useSuspenseQuery(billingQueryOptions(customer));
 }
 
 // ─────────────────────── Cảnh báo & nhật ký chạy: `/demo/alerts`, `/demo/timeline` ───────────────────────
@@ -94,6 +92,8 @@ export interface AlertOut {
   tone: 'warning' | 'info' | 'good';
   at: string;
   text: string;
+  /** `event` có giờ riêng; `day` nói về hôm nay; `month` nói về cả tháng. */
+  scope: 'event' | 'day' | 'month';
   appliance: string | null;
 }
 
@@ -129,11 +129,11 @@ export const timelineQueryOptions = () =>
   });
 
 export function useAlerts(customer: Customer = 'household') {
-  return useQuery({ ...alertsQueryOptions(customer), subscribed: useIsFocused() });
+  return useSuspenseQuery(alertsQueryOptions(customer));
 }
 
 export function useTimeline() {
-  return useQuery({ ...timelineQueryOptions(), subscribed: useIsFocused() });
+  return useSuspenseQuery(timelineQueryOptions());
 }
 
 // ──────────────────── Tiêu thụ: `GET /demo/usage`, `GET /demo/usage/devices/{key}` ────────────────────
@@ -180,7 +180,9 @@ export interface DeviceUsageOut {
   share_pct: number;
   previous_kwh: number;
   delta_pct: number | null;
+  average_power_w: number;
   runs: { count: number; minutes: number; avg_power_w: number | null; peak_power_w: number | null } | null;
+  recent_runs: { start: string; end: string; minutes: number; energy_kwh: number; peak_power_w: number }[];
   buckets: { start: string; kwh: number; cost_vnd: number; previous_kwh: number | null }[];
   note: string;
 }
@@ -192,11 +194,10 @@ export const usageQueryOptions = (range: UsageRange, offset: number) =>
       apiClient.get<UsageOut>('/demo/usage', {
         params: { range, offset, asof: new Date(DEMO_NOW).toISOString() },
       }),
-    placeholderData: keepPreviousData,
   });
 
 export function useUsage(range: UsageRange, offset: number) {
-  return useQuery({ ...usageQueryOptions(range, offset), subscribed: useIsFocused() });
+  return useSuspenseQuery(usageQueryOptions(range, offset));
 }
 
 export const deviceUsageQueryOptions = (key: string, range: UsageRange, offset: number) =>
@@ -206,11 +207,10 @@ export const deviceUsageQueryOptions = (key: string, range: UsageRange, offset: 
       apiClient.get<DeviceUsageOut>(`/demo/usage/devices/${key}`, {
         params: { range, offset, asof: new Date(DEMO_NOW).toISOString() },
       }),
-    placeholderData: keepPreviousData,
   });
 
 export function useDeviceUsage(key: string, range: UsageRange, offset: number) {
-  return useQuery(deviceUsageQueryOptions(key, range, offset));
+  return useSuspenseQuery(deviceUsageQueryOptions(key, range, offset));
 }
 
 // ───────────────────────── Trang chủ: cùng một nguồn với trang Tiêu thụ ─────────────────────────
@@ -230,15 +230,14 @@ export interface Dashboard {
  * tiền, % so với kỳ trước và phân bổ thiết bị luôn khớp nhau; query dùng chung cache.
  */
 export function useDashboard(range: DashboardRange) {
-  return useQuery({
+  return useSuspenseQuery({
     ...usageQueryOptions(range, 0),
     select: (u): Dashboard => ({
       kwh: u.kwh,
       costVnd: u.cost_vnd,
-      deltaPct: u.delta_pct === null ? null : Math.round(u.delta_pct),
+      deltaPct: u.delta_pct === null ? null : Math.sign(u.delta_pct) * Math.round(Math.abs(u.delta_pct)),
       ...DASHBOARD_LABELS[range],
       devices: toDevices(u.devices),
     }),
-    subscribed: useIsFocused(),
   });
 }

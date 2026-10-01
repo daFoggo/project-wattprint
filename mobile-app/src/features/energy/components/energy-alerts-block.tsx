@@ -10,6 +10,12 @@ const toneDot: Record<AlertOut['tone'], string> = {
   good: '#7CC24C',
 };
 
+/** Chỉ cảnh báo "sự kiện" mới có giờ riêng; tóm tắt ngày / tháng ghi phạm vi thay vì một giờ trùng nhau. */
+function whenLabel(a: AlertOut): string {
+  if (a.scope === 'event') return a.at.slice(11, 16);
+  return a.scope === 'day' ? 'HÔM NAY' : `THÁNG ${Number(a.at.slice(5, 7))}`;
+}
+
 interface EnergyAlertsBlockProps {
   alerts: AlertOut[];
 }
@@ -25,7 +31,7 @@ export function EnergyAlertsBlock({ alerts }: EnergyAlertsBlockProps) {
       <View style={styles.list}>
         {alerts.map((item) => (
           <View key={item.code + item.at} style={styles.row}>
-            <Text style={styles.time}>{item.at.slice(11, 16)}</Text>
+            <Text style={styles.time}>{whenLabel(item)}</Text>
             <View style={styles.dotWrap}>
               <View style={[styles.dot, { backgroundColor: toneDot[item.tone] }]} />
             </View>
@@ -75,7 +81,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.monoMedium,
     fontSize: 12,
     color: WattPrintTokens.colors.inkInverseMuted, // #BBD2C9
-    width: 42,
+    width: 64,
     paddingTop: 1,
   },
   dotWrap: {

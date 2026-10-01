@@ -1,91 +1,70 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useDeferredValue, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
-import { BottomTabInset, Fonts, MaxContentWidth, WattPrintTokens } from '@/constants/theme';
-import { useAlerts, useDashboard, useTimeline } from '@/features/energy/api';
-import { BubbleBreakdown } from '@/features/energy/components/bubble-breakdown';
-import { EnergyAlertsBlock } from '@/features/energy/components/energy-alerts-block';
-import { EnergyTimeline } from '@/features/energy/components/energy-timeline';
+import { QueryBoundary } from '@/components/common/query-boundary';
+import { BottomTabInset, MaxContentWidth, WattPrintTokens } from '@/constants/theme';
+import { usageQueryOptions } from '@/features/energy/api';
 import { RangePillSelector } from '@/features/energy/components/range-pill-selector';
 import type { DashboardRange, UnitMode } from '@/features/energy/types';
-import { useEnergyStore } from '@/features/energy/use-energy-store';
-
 import { useRefreshOnFocus } from '@/hooks/use-refresh-on-focus';
 
-import { HeroMetric } from './components/hero-metric';
+import { AlertsSection } from './components/alerts-section';
+import { HeroSection } from './components/hero-section';
 import { HomeHeader } from './components/home-header';
+import { AlertsSkeleton, HeroSectionSkeleton, TimelineSkeleton } from './components/home-skeletons';
+import { TimelineSection } from './components/timeline-section';
 
 export function HomeScreen() {
   const router = useRouter();
-  const { setActiveDeviceDetail } = useEnergyStore();
+  const queryClient = useQueryClient();
   const [range, setRange] = useState<DashboardRange>('day');
   const [unitMode, setUnitMode] = useState<UnitMode>('kwh');
-  const [selectedBubbleIndex, setSelectedBubbleIndex] = useState<number>(0);
 
-  const { data, isError, refetch } = useDashboard(range);
-  const alerts = useAlerts();
-  const timeline = useTimeline();
+  // Đổi tab kỳ: tab sáng ngay (range), dữ liệu đổi sau khi tải xong (deferredRange). Trong lúc chờ
+  // giữ nguyên nội dung cũ, hơi mờ đi (Tier 4), không thay bằng skeleton.
+  const deferredRange = useDeferredValue(range);
+  const refreshing = deferredRange !== range;
+
   useRefreshOnFocus();
 
-  const handleSelectBubble = (index: number) => {
-    setSelectedBubbleIndex(index);
-    const selected = data?.devices[index];
-    if (selected) {
-      setActiveDeviceDetail(selected);
-      router.push('/usage');
+  // Nạp trước hai kỳ còn lại: bấm Tuần/Tháng hoặc sang tab Tiêu thụ là có số ngay
+  useEffect(() => {
+    for (const r of ['day', 'week', 'month'] as const) {
+      queryClient.prefetchQuery(usageQueryOptions(r, 0));
     }
-  };
-
-  const toggleUnit = () => {
-    setUnitMode((prev) => (prev === 'kwh' ? 'cost' : 'kwh'));
-  };
+  }, [queryClient]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
           <HomeHeader onPressAi={() => router.push('/copilot')} />
 
-          {data ? (
-            <>
-              <HeroMetric
-                kwh={data.kwh}
-                cost={data.costVnd}
-                deltaPct={data.deltaPct}
-                period={data.period}
-                comparison={data.comparison}
+          <View style={refreshing && styles.refreshing}>
+            <QueryBoundary fallback={<HeroSectionSkeleton />} errorMessage="Không tải được dữ liệu tiêu thụ.">
+              <HeroSection
+                range={deferredRange}
+                pickedRange={range}
                 unitMode={unitMode}
-                onToggleUnit={toggleUnit}
+                onToggleUnit={() => setUnitMode((prev) => (prev === 'kwh' ? 'cost' : 'kwh'))}
               />
-              <BubbleBreakdown
-                devices={data.devices}
-                selectedIndex={selectedBubbleIndex}
-                onSelectIndex={handleSelectBubble}
-              />
-            </>
-          ) : isError ? (
-            <View style={styles.status}>
-              <Text style={styles.statusText}>Không tải được dữ liệu tiêu thụ.</Text>
-              <Pressable onPress={() => refetch()} accessibilityRole="button">
-                <Text style={styles.retry}>THỬ LẠI</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.status}>
-              <ActivityIndicator color={WattPrintTokens.colors.primary} />
-            </View>
-          )}
+            </QueryBoundary>
+          </View>
 
           <View style={styles.rangeSelectorWrapper}>
             <RangePillSelector selectedRange={range} onSelectRange={setRange} />
           </View>
 
-          {alerts.data && alerts.data.length > 0 && <EnergyAlertsBlock alerts={alerts.data} />}
-          {timeline.data && timeline.data.length > 0 && <EnergyTimeline appliances={timeline.data} />}
+          <QueryBoundary fallback={<AlertsSkeleton />} errorTone="dark" errorMessage="Không tải được cảnh báo.">
+            <AlertsSection />
+          </QueryBoundary>
+
+          <QueryBoundary fallback={<TimelineSkeleton />} errorMessage="Không tải được nhật ký thiết bị.">
+            <TimelineSection />
+          </QueryBoundary>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -113,21 +92,7 @@ const styles = StyleSheet.create({
   rangeSelectorWrapper: {
     paddingVertical: 4,
   },
-  status: {
-    height: 270,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  statusText: {
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-    color: WattPrintTokens.colors.inkBody,
-  },
-  retry: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 12,
-    letterSpacing: 0.6,
-    color: WattPrintTokens.colors.accentDeep,
+  refreshing: {
+    opacity: 0.55,
   },
 });
