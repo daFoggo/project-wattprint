@@ -1,0 +1,4 @@
+NILMFormer/data/*/*
+NILMFormer/results
+results
+.env

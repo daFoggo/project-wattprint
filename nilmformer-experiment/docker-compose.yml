@@ -15,6 +15,18 @@ services:
     profiles: ["tools"]
     command: ["python", "tools/download_refit.py"]
 
+  # all REFIT appliances: docker compose run --rm all-appliances
+  all-appliances:
+    <<: *nilm
+    command: ["sh", "tools/run_appliances.sh"]
+    deploy: &gpu
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   # docker compose run --rm experiment
   experiment:
     <<: *nilm
