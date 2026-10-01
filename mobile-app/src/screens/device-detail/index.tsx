@@ -1,17 +1,17 @@
 import React, { useDeferredValue, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useSafeBack } from '@/hooks/use-safe-back';
 import { QueryBoundary } from '@/components/common/query-boundary';
-import { WattPrintTokens } from '@/constants/theme';
 import type { UsageRange } from '@/features/energy/api';
-import { ApplianceIcon } from '@/features/energy/components/appliance-icon';
 import type { BubbleDevice } from '@/features/energy/types';
+import { useEnergyStore } from '@/features/energy/use-energy-store';
 
 import { DeviceDetailBody } from './components/device-detail-body';
 import { styles } from './components/device-detail-styles';
+import { DeviceSwitcher } from './components/device-switcher';
 import { DeviceDetailBodySkeleton } from './components/device-detail-skeletons';
 
 interface DeviceDetailScreenProps {
@@ -32,7 +32,8 @@ export function DeviceDetailScreen({
   initialOffset = 0,
   onBack,
 }: DeviceDetailScreenProps) {
-  const router = useRouter();
+  const goBack = useSafeBack('/usage');
+  const { setActiveDeviceDetail } = useEnergyStore();
   const [unit, setUnit] = useState<'kwh' | 'cost'>('kwh');
   const [activeTab, setActiveTab] = useState<UsageRange>(initialRange);
   const [offset, setOffset] = useState(initialOffset);
@@ -50,7 +51,7 @@ export function DeviceDetailScreen({
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      goBack();
     }
   };
 
@@ -87,18 +88,15 @@ export function DeviceDetailScreen({
           </View>
         </View>
 
-        {/* Identity Block on Ground */}
-        <View style={styles.identityBlock}>
-          <View style={styles.deviceIconBox}>
-            <ApplianceIcon
-              name={device.name}
-              id={device.id}
-              size={32}
-              color={WattPrintTokens.colors.primary}
-            />
-          </View>
-          <Text style={styles.deviceName}>{device.name}</Text>
-        </View>
+        <DeviceSwitcher
+          device={device}
+          range={deferredTab}
+          offset={deferredOffset}
+          onSwitch={(next) => {
+            setPickedBar(null);
+            setActiveDeviceDetail(next);
+          }}
+        />
 
         <View style={[{ gap: 12 }, refreshing && { opacity: 0.55 }]}>
           <QueryBoundary

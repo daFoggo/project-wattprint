@@ -58,8 +58,8 @@ export function UsageScreen() {
   const openDevice = (device: BubbleDevice) => {
     setActiveDeviceDetail(device);
     void import('@/screens/device-detail/index');
-    void queryClient.prefetchQuery(deviceUsageQueryOptions(device.id, usageTab, offset));
-    router.push({ pathname: '/usage/device', params: { range: usageTab, offset: String(offset) } });
+    void queryClient.prefetchQuery(deviceUsageQueryOptions(device.id, 'month', 0));
+    router.push('/usage/device');
   };
 
   const changeTab = (key: UsageTab) => {

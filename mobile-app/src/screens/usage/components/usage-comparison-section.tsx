@@ -53,8 +53,8 @@ export default function UsageComparisonSection({ monthOffset, unit }: UsageCompa
         snippet={monthly.insight.text}
         actionText="Hỏi Copilot giải đáp chi tiết"
         onPress={() => {
-          openInsightThread(monthly.insight.question, monthly.insight.text);
-          router.push('/copilot');
+          const id = openInsightThread(monthly.insight.question, monthly.insight.text);
+          router.push({ pathname: '/copilot/[id]', params: { id } });
         }}
       />
     </Card>

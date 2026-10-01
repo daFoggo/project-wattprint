@@ -113,3 +113,8 @@ export function comparisonAxis(range: UsageRange, p: UsagePeriod, offset: number
     ...axis,
   };
 }
+
+/** Tiền gọn theo nghìn đồng với một số lẻ: 12.956 -> `13,0` (đơn vị `K` đặt cạnh), 7.412 -> `7,4`. */
+export function thousands(vndValue: number): string {
+  return (vndValue / 1000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}

@@ -1,175 +1,153 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ChevronRight, Frown, Meh, Plus, Smile } from 'lucide-react-native';
-
+import { ChevronRight, Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QueryBoundary } from '@/components/common/query-boundary';
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import { CreateExperimentSheet } from '@/features/energy/components/create-experiment-sheet';
-import { ExperimentDetailModal } from '@/features/energy/components/experiment-detail-modal';
-import { ExperimentHistorySheet } from '@/features/energy/components/experiment-history-sheet';
-import { ExperimentStateCard } from '@/features/energy/components/experiment-state-card';
+import { ExperimentLogRow } from '@/features/energy/components/experiment-log-row';
+import type { ConfigMode } from '@/features/energy/components/create-experiment-sheet';
+import { ExperimentProposalList } from '@/features/energy/components/experiment-proposal-card';
+import {
+  ExperimentProposalListSkeleton,
+  ExperimentRunningCardSkeleton,
+} from '@/features/energy/components/experiment-skeletons';
+import { ExperimentRunningCard } from '@/features/energy/components/experiment-state-card';
 import { useEnergyStore } from '@/features/energy/use-energy-store';
 
-const EMOTION_MAP: Record<string, { label: string }> = {
-  comfortable: { label: 'Thoải mái' },
-  neutral: { label: 'Bình thường' },
-  uncomfortable: { label: 'Bất tiện' },
-};
+// Các tờ chỉ cần khi người dùng mở: nạp module theo nhu cầu.
+const CreateExperimentSheet = lazy(() =>
+  import('@/features/energy/components/create-experiment-sheet').then((m) => ({ default: m.CreateExperimentSheet }))
+);
+const ExperimentDetailModal = lazy(() =>
+  import('@/features/energy/components/experiment-detail-modal').then((m) => ({ default: m.ExperimentDetailModal }))
+);
+const ExperimentHistorySheet = lazy(() =>
+  import('@/features/energy/components/experiment-history-sheet').then((m) => ({ default: m.ExperimentHistorySheet }))
+);
+
+function tap(style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) {
+  try {
+    Haptics.impactAsync(style);
+  } catch {}
+}
 
 export function ExperimentScreen() {
   const {
-    experimentState,
     activeExperiment,
     experimentLogs,
+    experimentDraft,
+    setExperimentDraft,
     startExperiment,
     endExperiment,
   } = useEnergyStore();
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [config, setConfig] = useState<ConfigMode | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  const visibleLogs = experimentLogs.slice(0, 3);
+  const running = activeExperiment;
+  const logs = experimentLogs;
+  const visibleLogs = logs.slice(0, 3);
 
-  const handleOpenHistory = () => {
-    try {
-      Haptics.selectionAsync();
-    } catch {}
-    setIsHistoryOpen(true);
+  // Trợ lý AI đề nghị một thiết bị: mở tờ cấu hình với thiết bị đó (chỉ khi chưa có thử nghiệm đang chạy).
+  const sheetMode: ConfigMode | null =
+    config ?? (experimentDraft !== null && running === null ? { proposal: null, preset: experimentDraft } : null);
+  const closeConfig = () => {
+    setConfig(null);
+    setExperimentDraft(null);
+  };
+
+  const openCustom = () => {
+    tap();
+    setConfig({ proposal: null, preset: null });
   };
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        {/* Ground Title & Lede with Quick Create Action */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.groundHeader}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Thử nghiệm</Text>
-            <Pressable
-              onPress={() => {
-                try {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                } catch {}
-                setIsCreateOpen(true);
-              }}
-              style={({ pressed }) => [
-                styles.quickCreateBtn,
-                pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
-              ]}>
-              <Plus size={15} color={WattPrintTokens.colors.primary} strokeWidth={2.4} />
-              <Text style={styles.quickCreateText}>Tạo nhanh</Text>
-            </Pressable>
+            {running === null && (
+              <Pressable
+                onPress={openCustom}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.quickCreateBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}>
+                <Plus size={15} color={WattPrintTokens.colors.primary} strokeWidth={2.4} />
+                <Text style={styles.quickCreateText}>Tạo thử nghiệm</Text>
+              </Pressable>
+            )}
           </View>
           <Text style={styles.lede}>
-            Thay đổi một thói quen trong vài ngày. Mức tiêu thụ nền đã được ghi nhận tự động,
-            không cần nhập liệu thủ công.
+            Thay đổi một thói quen trong vài ngày. Số điện của thiết bị được đo tự động, không cần nhập tay.
           </Text>
         </View>
 
-        {/* Dynamic Single Active Experiment Card */}
-        <ExperimentStateCard
-          state={experimentState}
-          activeExperiment={activeExperiment}
-          onOpenCreate={() => setIsCreateOpen(true)}
-          onOpenDetail={() => setIsDetailOpen(true)}
-        />
+        {running ? (
+          <QueryBoundary fallback={<ExperimentRunningCardSkeleton />} errorMessage="Không tải được số đo thử nghiệm.">
+            <ExperimentRunningCard
+              experiment={running}
+              onOpenDetail={() => {
+                tap();
+                setIsDetailOpen(true);
+              }}
+            />
+          </QueryBoundary>
+        ) : (
+          <>
+            <View style={styles.pastHeader}>
+              <Text style={styles.pastEyebrow}>ĐỀ XUẤT CHO BẠN</Text>
+            </View>
+            <QueryBoundary fallback={<ExperimentProposalListSkeleton />} errorMessage="Không tải được đề xuất thử nghiệm.">
+              <ExperimentProposalList onPick={(proposal) => setConfig({ proposal, preset: null })} />
+            </QueryBoundary>
+          </>
+        )}
 
-        {/* Past Experiments Section */}
         <View style={styles.pastHeader}>
           <Text style={styles.pastEyebrow}>THỬ NGHIỆM ĐÃ QUA</Text>
-          {experimentLogs.length > 0 && (
+          {logs.length > 0 && (
             <Pressable
-              onPress={handleOpenHistory}
+              onPress={() => {
+                try {
+                  Haptics.selectionAsync();
+                } catch {}
+                setIsHistoryOpen(true);
+              }}
               hitSlop={8}
               style={({ pressed }) => [styles.seeAllBtn, pressed && { opacity: 0.6 }]}>
-              <Text style={styles.seeAllText}>
-                XEM TẤT CẢ ({experimentLogs.length})
-              </Text>
+              <Text style={styles.seeAllText}>XEM TẤT CẢ ({logs.length})</Text>
               <ChevronRight size={13} color={WattPrintTokens.colors.secondary} strokeWidth={2.2} />
             </Pressable>
           )}
         </View>
 
-        {/* Unified List Container */}
         <View style={styles.logListCard}>
-          {visibleLogs.map((item, index) => {
-            const emotionLabel = item.emotion ? EMOTION_MAP[item.emotion]?.label : null;
-
-            return (
-              <View
-                key={item.id}
-                style={[
-                  styles.logRow,
-                  index > 0 && styles.logRowBorder,
-                ]}>
-                <View style={styles.logMain}>
-                  <Text style={styles.logTitle}>{item.title}</Text>
-                  <View style={styles.logMetaRow}>
-                    <Text style={styles.logDate}>{item.date}</Text>
-                    {item.note ? (
-                      <>
-                        <Text style={styles.logMetaDot}>•</Text>
-                        <Text style={styles.logNote} numberOfLines={1}>
-                          {item.note}
-                        </Text>
-                      </>
-                    ) : null}
-                  </View>
-                </View>
-
-                <View style={styles.logRight}>
-                  {item.savedVnd > 0 ? (
-                    <Text style={styles.logSaved}>
-                      +{item.savedVnd.toLocaleString('vi-VN')} đ
-                    </Text>
-                  ) : (
-                    <Text style={styles.logSavedZero}>0 đ</Text>
-                  )}
-
-                  {item.emotion && (
-                    <View style={styles.emotionPill}>
-                      {item.emotion === 'comfortable' ? (
-                        <Smile size={12} color="#2F7A0C" strokeWidth={2.2} />
-                      ) : item.emotion === 'neutral' ? (
-                        <Meh size={12} color="#7A6B1A" strokeWidth={2.2} />
-                      ) : (
-                        <Frown size={12} color="#C44536" strokeWidth={2.2} />
-                      )}
-                      <Text style={styles.emotionText}>{emotionLabel}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
+          {visibleLogs.length === 0 ? (
+            <Text style={styles.emptyLog}>Chưa có thử nghiệm nào hoàn tất</Text>
+          ) : (
+            visibleLogs.map((item, index) => <ExperimentLogRow key={item.id} item={item} bordered={index > 0} />)
+          )}
         </View>
       </ScrollView>
 
-      {/* S2: Create / Configure Sheet */}
-      <CreateExperimentSheet
-        visible={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onStart={startExperiment}
-      />
-
-      {/* S3: Detail & Ending View */}
-      <ExperimentDetailModal
-        visible={isDetailOpen}
-        experiment={activeExperiment}
-        onClose={() => setIsDetailOpen(false)}
-        onEnd={endExperiment}
-      />
-
-      {/* Full History Sheet */}
-      <ExperimentHistorySheet
-        visible={isHistoryOpen}
-        logs={experimentLogs}
-        onClose={() => setIsHistoryOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <CreateExperimentSheet
+          visible={sheetMode !== null}
+          mode={sheetMode ?? { proposal: null, preset: null }}
+          onClose={closeConfig}
+          onStart={startExperiment}
+        />
+        <ExperimentDetailModal
+          visible={isDetailOpen}
+          experiment={running}
+          onClose={() => setIsDetailOpen(false)}
+          onEnd={endExperiment}
+        />
+        <ExperimentHistorySheet visible={isHistoryOpen} logs={logs} onClose={() => setIsHistoryOpen(false)} />
+      </Suspense>
     </SafeAreaView>
   );
 }
@@ -252,76 +230,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 16,
   },
-  logRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    gap: 12,
-  },
-  logRowBorder: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E7EBE1',
-  },
-  logMain: {
-    flex: 1,
-    gap: 4,
-  },
-  logTitle: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 14,
-    lineHeight: 20,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
-  logMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  logDate: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 12,
-    color: WattPrintTokens.colors.secondary,
-  },
-  logMetaDot: {
-    fontSize: 12,
-    color: WattPrintTokens.colors.secondary,
-  },
-  logNote: {
+  emptyLog: {
     fontFamily: Fonts.sans,
-    fontSize: 12,
-    color: WattPrintTokens.colors.secondary,
-    flex: 1,
-  },
-  logRight: {
-    alignItems: 'flex-end',
-    gap: 5,
-  },
-  logSaved: {
-    fontFamily: Fonts.sansSemiBold,
     fontSize: 14,
-    color: WattPrintTokens.colors.accentDeep, // #2F7A0C
-  },
-  logSavedZero: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 13,
+    paddingVertical: 20,
+    textAlign: 'center',
     color: WattPrintTokens.colors.secondary,
-  },
-  emotionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: WattPrintTokens.colors.primaryContainer, // #EFF4E6
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: WattPrintTokens.radii.pill,
-  },
-  emotionEmoji: {
-    fontSize: 12,
-  },
-  emotionText: {
-    fontFamily: Fonts.sans,
-    fontSize: 11,
-    color: WattPrintTokens.colors.primary,
   },
 });

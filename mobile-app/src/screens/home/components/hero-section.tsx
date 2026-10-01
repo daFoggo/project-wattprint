@@ -30,7 +30,7 @@ export function HeroSection({ range, pickedRange, unitMode, onToggleUnit }: Hero
     if (selected) {
       setActiveDeviceDetail(selected);
       setUsageTab(pickedRange); // Tiêu thụ và chi tiết thiết bị mở đúng kỳ đang xem ở đây
-      router.push({ pathname: '/usage/device', params: { range: pickedRange, offset: '0' } });
+      router.push('/usage/device');
     }
   };
 

@@ -1,15 +1,49 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import type { ChatMessage } from '@/features/energy/types';
+import type { ChatAction, ChatMessage } from '@/features/energy/types';
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
-  onCtaPress?: (cta: string) => void;
+  onAction?: (action: ChatAction) => void;
+  onRetry?: () => void;
 }
 
-export function ChatMessageBubble({ message, onCtaPress }: ChatMessageBubbleProps) {
+function Dot({ delay }: { delay: number }) {
+  const opacity = useSharedValue(0.3);
+  useEffect(() => {
+    opacity.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })),
+        -1
+      )
+    );
+  }, [opacity, delay]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return <Animated.View style={[styles.typingDot, style]} />;
+}
+
+function TypingIndicator() {
+  return (
+    <View style={styles.typing} accessibilityLabel="Trợ lý đang trả lời">
+      <Dot delay={0} />
+      <Dot delay={150} />
+      <Dot delay={300} />
+    </View>
+  );
+}
+
+export function ChatMessageBubble({ message, onAction, onRetry }: ChatMessageBubbleProps) {
   const isAi = message.who === 'ai';
 
   if (!isAi) {
@@ -22,52 +56,35 @@ export function ChatMessageBubble({ message, onCtaPress }: ChatMessageBubbleProp
     );
   }
 
-  const hasData =
-    !!message.weather ||
-    !!message.tariffFact ||
-    (message.facts && message.facts.length > 0);
+  const hasData = !!message.facts && message.facts.length > 0;
 
   return (
     <View style={styles.aiBlock}>
-      {/* Editorial Block Header */}
       <View style={styles.aiHeader}>
         <View style={styles.aiBadge}>
           <View style={styles.aiDot} />
           <Text style={styles.aiBadgeText}>TRỢ LÝ AI</Text>
         </View>
-        <Text style={styles.aiMetaText}>ĐÃ ĐỒNG BỘ CÔNG TƠ</Text>
+        <Text style={styles.aiMetaText}>SỐ LIỆU CÔNG TƠ</Text>
       </View>
 
-      {/* Grounded Body Text */}
-      <Text style={styles.aiText}>{message.text}</Text>
+      {message.state === 'pending' ? (
+        <TypingIndicator />
+      ) : (
+        <Text style={styles.aiText}>{message.text}</Text>
+      )}
 
-      {/* Unified Data Reference Table */}
+      {message.state === 'failed' && onRetry && (
+        <Pressable
+          onPress={onRetry}
+          style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.8 }]}>
+          <Text style={styles.retryText}>Thử lại</Text>
+        </Pressable>
+      )}
+
       {hasData && (
         <View style={styles.dataCard}>
           <Text style={styles.dataTitle}>DỮ LIỆU ĐỐI CHIẾU</Text>
-
-          {message.weather && (
-            <View style={styles.dataRow}>
-              <Text style={styles.dataKey} numberOfLines={1}>
-                Nhiệt độ ngoài trời
-              </Text>
-              <Text style={styles.dataVal} numberOfLines={1}>
-                {message.weather.tempC}°C · +{message.weather.diffC}°C
-              </Text>
-            </View>
-          )}
-
-          {message.tariffFact && (
-            <View style={styles.dataRow}>
-              <Text style={styles.dataKey} numberOfLines={1}>
-                Bậc giá EVN
-              </Text>
-              <Text style={styles.dataVal} numberOfLines={1}>
-                {message.tariffFact.currentTier} · còn {message.tariffFact.headroomKwh} kWh
-              </Text>
-            </View>
-          )}
-
           {message.facts?.map((fact, idx) => (
             <View key={idx} style={styles.dataRow}>
               <Text style={styles.dataKey} numberOfLines={1}>
@@ -81,26 +98,13 @@ export function ChatMessageBubble({ message, onCtaPress }: ChatMessageBubbleProp
         </View>
       )}
 
-      {/* Proposal + Action CTA */}
-      {message.cta && (
-        <>
-          {message.ctaDesc && (
-            <View style={styles.proposal}>
-              <Text style={styles.proposalLabel}>ĐỀ XUẤT THỬ NGHIỆM</Text>
-              <Text style={styles.proposalText}>{message.ctaDesc}</Text>
-            </View>
-          )}
-
-          <Pressable
-            onPress={() => onCtaPress?.(message.cta!)}
-            style={({ pressed }) => [
-              styles.ctaBtn,
-              pressed && { opacity: 0.85 },
-            ]}>
-            <Text style={styles.ctaBtnText}>{message.cta}</Text>
-            <Text style={styles.ctaArrow}>→</Text>
-          </Pressable>
-        </>
+      {message.action && (
+        <Pressable
+          onPress={() => onAction?.(message.action!)}
+          style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.ctaBtnText}>{message.action.label}</Text>
+          <Text style={styles.ctaArrow}>→</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -167,6 +171,29 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: WattPrintTokens.colors.primary, // #164437
   },
+  typing: {
+    flexDirection: 'row',
+    gap: 5,
+    paddingVertical: 8,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: WattPrintTokens.colors.secondary,
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: WattPrintTokens.colors.primary,
+    borderRadius: WattPrintTokens.radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  retryText: {
+    fontFamily: Fonts.sansSemiBold,
+    fontSize: 13,
+    color: WattPrintTokens.colors.tertiary,
+  },
   dataCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: WattPrintTokens.radii.md,
@@ -206,22 +233,6 @@ const styles = StyleSheet.create({
     color: WattPrintTokens.colors.primary, // #164437
     textAlign: 'right',
     flexShrink: 1,
-  },
-  proposal: {
-    gap: 3,
-    marginTop: 2,
-  },
-  proposalLabel: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 10,
-    letterSpacing: 0.6,
-    color: WattPrintTokens.colors.accentDeep, // #2F7A0C
-  },
-  proposalText: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: WattPrintTokens.colors.primary, // #164437
   },
   ctaBtn: {
     flexDirection: 'row',

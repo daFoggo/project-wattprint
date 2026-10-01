@@ -6,7 +6,7 @@ import { useDeviceUsage, type UsageRange } from '@/features/energy/api';
 import { UnderlineTabRow } from '@/features/energy/components/underline-tab-row';
 import { UsageBarChart } from '@/features/energy/components/usage-bar-chart';
 import type { UnitMode, UsageChartItem } from '@/features/energy/types';
-import { kwhText, periodLabel, toChartItems, vnd } from '@/features/energy/usage-view';
+import { kwhText, periodLabel, thousands, toChartItems, vnd } from '@/features/energy/usage-view';
 
 import { styles } from './device-detail-styles';
 
@@ -102,10 +102,10 @@ export function DeviceDetailBody({
           style={styles.statCard}>
           <Text style={styles.statEyebrow}>CHI PHÍ</Text>
           <View style={styles.statValueRow}>
-            <Text style={styles.statValue}>{vnd(data.cost_vnd / 1000)}</Text>
-            <Text style={styles.statUnit}>nghìn đồng</Text>
+            <Text style={styles.statValue}>{thousands(data.cost_vnd)}</Text>
+            <Text style={styles.statUnit}>K</Text>
           </View>
-          <Text style={styles.statLede}>trong kỳ đang xem</Text>
+          <Text style={styles.statLede}>{`${vnd(data.cost_vnd)} đ trong kỳ`}</Text>
         </Card>
       </View>
 

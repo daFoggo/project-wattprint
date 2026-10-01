@@ -1,63 +1,99 @@
 import React, { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Check, Frown, Meh, Smile, X } from 'lucide-react-native';
 
+import { QueryBoundary } from '@/components/common/query-boundary';
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import {
+  APPLIANCE_ICON_ID,
+  NOT_ENOUGH_DAYS,
+  experimentDay,
+  formatKwh,
+  formatVnd,
+  savedSentence,
+  shortDate,
+} from '@/features/energy/experiment-utils';
 import type { ActiveExperiment, EmotionType } from '@/features/energy/types';
+import { useActiveExperimentProgress } from '@/features/energy/use-experiment-progress';
+
 import { ApplianceIcon } from './appliance-icon';
+import { ExperimentDetailSkeleton } from './experiment-skeletons';
+
+interface EndResult {
+  savedKwh: number;
+  savedVnd: number;
+  days: number;
+  dateRange: string;
+}
 
 interface ExperimentDetailModalProps {
   visible: boolean;
   experiment: ActiveExperiment | null;
   onClose: () => void;
-  onEnd: (emotion: EmotionType) => void;
+  onEnd: (emotion: EmotionType, result: EndResult) => void;
 }
 
-const EMOTION_OPTIONS: {
-  key: EmotionType;
-  label: string;
-  desc: string;
-}[] = [
-  {
-    key: 'comfortable',
-    label: 'Thoải mái',
-    desc: 'Dễ chịu, không xáo trộn sinh hoạt',
-  },
-  {
-    key: 'neutral',
-    label: 'Bình thường',
-    desc: 'Chấp nhận được, quen dần',
-  },
-  {
-    key: 'uncomfortable',
-    label: 'Bất tiện',
-    desc: 'Khó chịu, nóng hoặc bất tiện',
-  },
+const EMOTION_OPTIONS: { key: EmotionType; label: string; desc: string }[] = [
+  { key: 'comfortable', label: 'Thoải mái', desc: 'Dễ chịu, không xáo trộn sinh hoạt' },
+  { key: 'neutral', label: 'Bình thường', desc: 'Chấp nhận được, quen dần' },
+  { key: 'uncomfortable', label: 'Bất tiện', desc: 'Khó chịu, nóng hoặc bất tiện' },
 ];
 
-export function ExperimentDetailModal({
-  visible,
+export function ExperimentDetailModal({ visible, experiment, onClose, onEnd }: ExperimentDetailModalProps) {
+  return (
+    <Modal visible={visible && experiment !== null} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <Pressable style={styles.scrim} onPress={onClose} />
+
+        <View style={styles.sheetContainer}>
+          <View style={styles.dragHandle} />
+
+          {experiment && (
+            <>
+              <View style={styles.headerRow}>
+                <View>
+                  <Text style={styles.eyebrow}>
+                    CHI TIẾT THỬ NGHIỆM · NGÀY {experimentDay(experiment.startedDate, experiment.totalDays)}/
+                    {experiment.totalDays}
+                  </Text>
+                  <Text style={styles.title}>{experiment.actions.map((a) => a.name).join(' + ')}</Text>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={12}
+                  style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}>
+                  <X size={18} color={WattPrintTokens.colors.primary} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+
+              <QueryBoundary fallback={<ExperimentDetailSkeleton />} errorMessage="Không tải được số đo thử nghiệm.">
+                <DetailBody experiment={experiment} onClose={onClose} onEnd={onEnd} />
+              </QueryBoundary>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DetailBody({
   experiment,
   onClose,
   onEnd,
-}: ExperimentDetailModalProps) {
+}: {
+  experiment: ActiveExperiment;
+  onClose: () => void;
+  onEnd: ExperimentDetailModalProps['onEnd'];
+}) {
+  const progress = useActiveExperimentProgress(experiment);
   const [selectedEmotion, setSelectedEmotion] = useState<EmotionType>('comfortable');
   const [showSurvey, setShowSurvey] = useState(false);
 
-  if (!experiment) return null;
-
-  const totalKwhUsed = experiment.dailyLogs.reduce((acc, cur) => acc + cur.kwh, 0);
-  const baselineTotalKwh = experiment.baselineKwh * experiment.dailyLogs.length;
-  const totalSavedKwh = Math.max(0, Math.round((baselineTotalKwh - totalKwhUsed) * 10) / 10);
-  const totalSavedVnd = Math.round(totalSavedKwh * 2700);
+  const completeDays = progress.completeDays;
+  const first = progress.days[0];
+  const last = progress.days[progress.days.length - 1];
 
   const handleSelectEmotion = (emotion: EmotionType) => {
     try {
@@ -70,247 +106,161 @@ export function ExperimentDetailModal({
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {}
-    onEnd(selectedEmotion);
+    onEnd(selectedEmotion, {
+      savedKwh: progress.savedKwh,
+      savedVnd: progress.savedVnd,
+      days: progress.days.length,
+      dateRange: first && last ? `${shortDate(first.date)} – ${shortDate(last.date)}` : '',
+    });
     onClose();
-    setShowSurvey(false);
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <Pressable style={styles.scrim} onPress={onClose} />
-
-        <View style={styles.sheetContainer}>
-          <View style={styles.dragHandle} />
-
-          {/* Header */}
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.eyebrow}>
-                CHI TIẾT THỬ NGHIỆM · NGÀY {experiment.currentDay}/{experiment.totalDays}
-              </Text>
-              <Text style={styles.title}>{experiment.deviceName}</Text>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.sectionHeading}>THIẾT BỊ TRONG THỬ NGHIỆM</Text>
+      {experiment.actions.map((a, i) => {
+        const p = progress.perAppliance[i];
+        const latest = p?.days.at(-1);
+        const done = p?.days.some((d) => d.complete) ?? false;
+        return (
+          <View key={a.appliance} style={styles.goalCard}>
+            <View style={styles.goalIconWrap}>
+              <ApplianceIcon name="" id={APPLIANCE_ICON_ID[a.appliance]} size={24} color={WattPrintTokens.colors.primary} />
             </View>
-            <Pressable
-              onPress={onClose}
-              hitSlop={12}
-              style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}>
-              <X size={18} color={WattPrintTokens.colors.primary} strokeWidth={2.2} />
-            </Pressable>
+            <View style={styles.goalContent}>
+              <Text style={styles.goalTitle}>
+                {a.name}: bớt {a.amount} {a.unitLabel}
+              </Text>
+              <Text style={styles.goalSub}>
+                Nền {formatKwh(a.baselineKwhPerDay)} kWh/ngày · hôm nay {formatKwh(latest?.kwh ?? 0)} kWh · dự kiến bớt ~
+                {formatKwh(a.predictedKwhPerDay)} kWh/ngày
+              </Text>
+              {done && p && (
+                <Text style={styles.goalSub}>
+                  {savedSentence(p.saved_kwh, p.saved_vnd, p.days.filter((d) => d.complete).length)}
+                </Text>
+              )}
+            </View>
+          </View>
+        );
+      })}
+
+      <View style={styles.savingsRow}>
+        {completeDays > 0 ? (
+          <>
+            <View style={styles.savingBox}>
+              <Text style={styles.savingLabel}>{progress.savedKwh >= 0 ? 'TIẾT KIỆM ĐẾN NAY' : 'CAO HƠN MỨC NỀN'}</Text>
+              <Text style={[styles.savingVal, progress.savedKwh < 0 && styles.savingValNeg]}>
+                {formatKwh(Math.abs(progress.savedKwh))} kWh
+              </Text>
+            </View>
+            <View style={styles.savingDivider} />
+            <View style={styles.savingBox}>
+              <Text style={styles.savingLabel}>{progress.savedKwh >= 0 ? 'TIỀN ĐIỆN BỚT ĐI' : 'TIỀN ĐIỆN PHÁT SINH'}</Text>
+              <Text style={styles.savingValVnd}>{formatVnd(Math.abs(progress.savedVnd))}</Text>
+            </View>
+          </>
+        ) : (
+          <Text style={styles.notEnough}>{NOT_ENOUGH_DAYS}. Hôm nay còn đang đo.</Text>
+        )}
+      </View>
+
+      <Text style={styles.sectionHeading}>SỐ ĐO THEO NGÀY ({progress.days.length} NGÀY)</Text>
+
+      <View style={styles.logTableCard}>
+        {progress.days.map((item, index) => {
+          const delta = progress.baselineKwhPerDay - item.kwh;
+          return (
+            <View key={item.date} style={[styles.logTableRow, index > 0 && styles.logTableRowBorder]}>
+              <View style={styles.dayCol}>
+                <Text style={styles.dayLabel}>Ngày {index + 1}</Text>
+                <Text style={styles.dayDate}>{shortDate(item.date)}</Text>
+              </View>
+
+              <View style={styles.runtimeCol}>
+                <Text style={styles.runtimeLabel}>Thời gian chạy</Text>
+                <Text style={styles.runtimeVal}>
+                  {Math.round(item.minutes)} phút · {item.runs} lần
+                </Text>
+              </View>
+
+              <View style={styles.kwhCol}>
+                <Text style={styles.kwhVal}>{formatKwh(item.kwh)} kWh</Text>
+                <Text style={styles.kwhDiff}>
+                  {!item.complete
+                    ? 'Đang đo, chưa hết ngày'
+                    : delta >= 0
+                      ? `Thấp hơn nền ${formatKwh(delta)}`
+                      : `Cao hơn nền ${formatKwh(-delta)}`}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {!showSurvey ? (
+        <Pressable
+          onPress={() => {
+            try {
+              Haptics.selectionAsync();
+            } catch {}
+            setShowSurvey(true);
+          }}
+          style={({ pressed }) => [styles.endTriggerBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.985 }] }]}>
+          <Text style={styles.endTriggerBtnText}>KẾT THÚC THỬ NGHIỆM</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.surveyCard}>
+          <Text style={styles.surveyQuestion}>Trong quá trình thử nghiệm, bạn cảm thấy thế nào?</Text>
+
+          <View style={styles.emotionList}>
+            {EMOTION_OPTIONS.map((opt) => {
+              const isSelected = selectedEmotion === opt.key;
+              const iconColor = isSelected
+                ? opt.key === 'comfortable'
+                  ? WattPrintTokens.colors.accentDeep
+                  : opt.key === 'neutral'
+                    ? '#8A6E10'
+                    : '#C44536'
+                : WattPrintTokens.colors.secondary;
+              const Icon = opt.key === 'comfortable' ? Smile : opt.key === 'neutral' ? Meh : Frown;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => handleSelectEmotion(opt.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  style={({ pressed }) => [
+                    styles.emotionBtn,
+                    isSelected && styles.emotionBtnSelected,
+                    pressed && { opacity: 0.8 },
+                  ]}>
+                  <View style={[styles.emotionIconWrap, isSelected && styles.emotionIconWrapSelected]}>
+                    <Icon size={22} color={iconColor} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.emotionContent}>
+                    <Text style={[styles.emotionLabel, isSelected && styles.emotionLabelSelected]}>{opt.label}</Text>
+                    <Text style={[styles.emotionDesc, isSelected && styles.emotionDescSelected]}>{opt.desc}</Text>
+                  </View>
+                  {isSelected && (
+                    <View style={styles.radioActive}>
+                      <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
 
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}>
-            {/* Goal Card */}
-            <View style={styles.goalCard}>
-              <View style={styles.goalIconWrap}>
-                <ApplianceIcon
-                  name={experiment.deviceName}
-                  id={experiment.deviceId}
-                  size={24}
-                  color={WattPrintTokens.colors.primary}
-                />
-              </View>
-              <View style={styles.goalContent}>
-                <Text style={styles.goalTitle}>{experiment.title}</Text>
-                <Text style={styles.goalSub}>
-                  Mức nền: {experiment.baselineKwh.toFixed(1)} kWh/ngày → Mục tiêu:{' '}
-                  {experiment.targetKwh.toFixed(1)} kWh/ngày
-                </Text>
-              </View>
-            </View>
-
-            {/* Savings Overview Bar */}
-            <View style={styles.savingsRow}>
-              <View style={styles.savingBox}>
-                <Text style={styles.savingLabel}>TIẾT KIỆM ĐẾN NAY</Text>
-                <Text style={styles.savingVal}>+{totalSavedKwh.toFixed(1)} kWh</Text>
-              </View>
-              <View style={styles.savingDivider} />
-              <View style={styles.savingBox}>
-                <Text style={styles.savingLabel}>ƯỚC TÍNH CHI PHÍ</Text>
-                <Text style={styles.savingValVnd}>
-                  +{totalSavedVnd.toLocaleString('vi-VN')} đ
-                </Text>
-              </View>
-            </View>
-
-            {/* Device Daily Logs Section */}
-            <Text style={styles.sectionHeading}>
-              NHẬT KÝ ĐO ĐẠC THỰC TẾ THEO NGÀY ({experiment.dailyLogs.length} NGÀY)
-            </Text>
-
-            <View style={styles.logTableCard}>
-              {experiment.dailyLogs.map((item, index) => (
-                <View
-                  key={item.day}
-                  style={[
-                    styles.logTableRow,
-                    index > 0 && styles.logTableRowBorder,
-                  ]}>
-                  <View style={styles.dayCol}>
-                    <Text style={styles.dayLabel}>Ngày {item.day}</Text>
-                    <Text style={styles.dayDate}>{item.date}</Text>
-                  </View>
-
-                  <View style={styles.runtimeCol}>
-                    <Text style={styles.runtimeLabel}>Thời gian chạy</Text>
-                    <Text style={styles.runtimeVal}>{item.runtime}</Text>
-                  </View>
-
-                  <View style={styles.kwhCol}>
-                    <Text style={styles.kwhVal}>{item.kwh.toFixed(1)} kWh</Text>
-                    <Text style={styles.kwhDiff}>
-                      {item.kwh <= experiment.targetKwh ? 'Đạt mục tiêu' : 'Vượt mục tiêu'}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            {/* If not yet opened survey, show button to trigger evaluation */}
-            {!showSurvey ? (
-              <Pressable
-                onPress={() => {
-                  try {
-                    Haptics.selectionAsync();
-                  } catch {}
-                  setShowSurvey(true);
-                }}
-                style={({ pressed }) => [
-                  styles.endTriggerBtn,
-                  pressed && { opacity: 0.8, transform: [{ scale: 0.985 }] },
-                ]}>
-                <Text style={styles.endTriggerBtnText}>KẾT THÚC THỬ NGHIỆM</Text>
-              </Pressable>
-            ) : (
-              /* Emotion Survey Block */
-              <View style={styles.surveyCard}>
-                <Text style={styles.surveyQuestion}>
-                  Trong quá trình thử nghiệm, bạn cảm thấy thế nào?
-                </Text>
-
-                {/* 3 Quick Emotion Buttons */}
-                <View style={styles.quickEmotionRow}>
-                  {EMOTION_OPTIONS.map((opt) => {
-                    const isSelected = selectedEmotion === opt.key;
-                    return (
-                      <Pressable
-                        key={opt.key}
-                        onPress={() => handleSelectEmotion(opt.key)}
-                        style={({ pressed }) => [
-                          styles.quickEmotionChip,
-                          isSelected && styles.quickEmotionChipSelected,
-                          pressed && { opacity: 0.75 },
-                        ]}>
-                        <Text style={styles.quickEmotionEmoji}>
-                          {opt.key === 'comfortable' ? '😊' : opt.key === 'neutral' ? '😐' : '🙁'}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.quickEmotionText,
-                            isSelected && styles.quickEmotionTextSelected,
-                          ]}>
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <View style={styles.emotionList}>
-                  {EMOTION_OPTIONS.map((opt) => {
-                    const isSelected = selectedEmotion === opt.key;
-                    return (
-                      <Pressable
-                        key={opt.key}
-                        onPress={() => handleSelectEmotion(opt.key)}
-                        style={({ pressed }) => [
-                          styles.emotionBtn,
-                          isSelected && styles.emotionBtnSelected,
-                          pressed && { opacity: 0.8 },
-                        ]}>
-                        <View
-                          style={[
-                            styles.emotionIconWrap,
-                            isSelected && styles.emotionIconWrapSelected,
-                          ]}>
-                          {opt.key === 'comfortable' ? (
-                            <Smile
-                              size={22}
-                              color={
-                                isSelected
-                                  ? WattPrintTokens.colors.accentDeep
-                                  : WattPrintTokens.colors.secondary
-                              }
-                              strokeWidth={2.2}
-                            />
-                          ) : opt.key === 'neutral' ? (
-                            <Meh
-                              size={22}
-                              color={
-                                isSelected ? '#8A6E10' : WattPrintTokens.colors.secondary
-                              }
-                              strokeWidth={2.2}
-                            />
-                          ) : (
-                            <Frown
-                              size={22}
-                              color={
-                                isSelected ? '#C44536' : WattPrintTokens.colors.secondary
-                              }
-                              strokeWidth={2.2}
-                            />
-                          )}
-                        </View>
-                        <View style={styles.emotionContent}>
-                          <Text
-                            style={[
-                              styles.emotionLabel,
-                              isSelected && styles.emotionLabelSelected,
-                            ]}>
-                            {opt.label}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.emotionDesc,
-                              isSelected && styles.emotionDescSelected,
-                            ]}>
-                            {opt.desc}
-                          </Text>
-                        </View>
-                        {isSelected && (
-                          <View style={styles.radioActive}>
-                            <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {/* Final Confirm End Button */}
-                <Pressable
-                  onPress={handleConfirmEnd}
-                  style={({ pressed }) => [
-                    styles.confirmBtn,
-                    pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] },
-                  ]}>
-                  <Text style={styles.confirmBtnText}>
-                    XÁC NHẬN KẾT THÚC VÀ LƯU KẾT QUẢ
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-          </ScrollView>
+          <Pressable
+            onPress={handleConfirmEnd}
+            style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] }]}>
+            <Text style={styles.confirmBtnText}>XÁC NHẬN KẾT THÚC VÀ LƯU KẾT QUẢ</Text>
+          </Pressable>
         </View>
-      </View>
-    </Modal>
+      )}
+    </ScrollView>
   );
 }
 
@@ -366,11 +316,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E7DB',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeBtnText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 14,
-    color: WattPrintTokens.colors.primary,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -436,6 +381,9 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sansSemiBold,
     fontSize: 18,
     color: WattPrintTokens.colors.accentDeep, // #2F7A0C
+  },
+  savingValNeg: {
+    color: '#C44536',
   },
   savingValVnd: {
     fontFamily: Fonts.sansSemiBold,
@@ -536,39 +484,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: WattPrintTokens.colors.primary,
   },
-  quickEmotionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  quickEmotionChip: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: WattPrintTokens.colors.primaryContainer, // #EFF4E6
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: WattPrintTokens.radii.pill,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  quickEmotionChipSelected: {
-    backgroundColor: '#EFF8EA',
-    borderColor: WattPrintTokens.colors.accentDeep,
-  },
-  quickEmotionEmoji: {
-    fontSize: 16,
-  },
-  quickEmotionText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 12,
-    color: WattPrintTokens.colors.primary,
-  },
-  quickEmotionTextSelected: {
-    fontFamily: Fonts.sansSemiBold,
-    color: WattPrintTokens.colors.accentDeep,
-  },
   emotionList: {
     gap: 8,
   },
@@ -627,11 +542,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioCheck: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   confirmBtn: {
     backgroundColor: WattPrintTokens.colors.primary, // #164437
     borderRadius: WattPrintTokens.radii.pill,
@@ -645,5 +555,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.6,
     color: WattPrintTokens.colors.tertiary, // #B5E930
+  },
+  notEnough: {
+    flex: 1,
+    fontFamily: Fonts.sansMedium,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    color: WattPrintTokens.colors.secondary,
   },
 });

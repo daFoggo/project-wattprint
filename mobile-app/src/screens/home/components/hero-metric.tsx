@@ -71,7 +71,7 @@ export function HeroMetric({
 const styles = StyleSheet.create({
   container: {
     paddingTop: 10,
-    paddingBottom: 4,
+    paddingBottom: 22,
   },
   pressable: {
     gap: 8,

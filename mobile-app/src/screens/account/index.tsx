@@ -1,100 +1,79 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Host, Switch } from '@expo/ui';
-import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 
-import { Fonts, WattPrintTokens } from '@/constants/theme';
 import { Card } from '@/components/common/card';
-import { ACCOUNT_GROUPS } from '@/features/energy/mock';
+import { QueryBoundary } from '@/components/common/query-boundary';
+import { Fonts, WattPrintTokens } from '@/constants/theme';
+import { ALERT_PREF_ITEMS } from '@/features/energy/alert-prefs';
+import { DEMO_NOW } from '@/features/energy/period';
+import { useEnergyStore } from '@/features/energy/use-energy-store';
+
+import { HouseholdSection, InfoRows, ModelSection } from './components/account-sections';
+import { HouseholdSkeleton, ModelSkeleton } from './components/account-skeletons';
+
+const demoMoment = (() => {
+  const iso = new Date(DEMO_NOW).toISOString();
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)} ${iso.slice(11, 16)}`;
+})();
 
 export function AccountScreen() {
-  const router = useRouter();
-  const [tierWarnings, setTierWarnings] = useState(true);
-  const [phantomAlerts, setPhantomAlerts] = useState(true);
+  const { alertPrefs, setAlertPref, resetLocalData } = useEnergyStore();
+
+  const confirmReset = () =>
+    Alert.alert(
+      'Xoá dữ liệu trên máy?',
+      'Các cuộc hội thoại, thử nghiệm và công tắc thông báo đã lưu trên máy sẽ bị xoá. Số liệu điện không bị ảnh hưởng.',
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        { text: 'Xoá', style: 'destructive', onPress: resetLocalData },
+      ]
+    );
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        {/* Identity on Ground */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.groundHeader}>
           <Text style={styles.title}>Tài khoản</Text>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>MK</Text>
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.userName}>Minh Khoa</Text>
-              <Text style={styles.userEmail}>khoa.tran@gmail.com</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Paired Status Cards */}
-        <View style={styles.pairedGrid}>
-          <Pressable
-            onPress={() => router.push('/account/billing')}
-            accessibilityRole="button"
-            accessibilityLabel="Xem chi tiết biểu phí và hóa đơn"
-            style={styles.statusCardPressable}>
-            <Card style={styles.statusCard}>
-              <View style={styles.statusHeaderRow}>
-                <Text style={styles.statusEyebrow}>BIỂU PHÍ</Text>
-                <Text style={styles.statusArrow}>›</Text>
+        <QueryBoundary fallback={<HouseholdSkeleton />} errorMessage="Không tải được thông tin hộ gia đình.">
+          <HouseholdSection />
+        </QueryBoundary>
+
+        <Card style={styles.groupCard}>
+          <Text style={styles.groupTitle}>THÔNG BÁO</Text>
+          <View style={styles.groupItems}>
+            {ALERT_PREF_ITEMS.map((item) => (
+              <View key={item.key} style={styles.itemRow}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                <Host matchContents>
+                  <Switch value={alertPrefs[item.key]} onValueChange={(v) => setAlertPref(item.key, v)} />
+                </Host>
               </View>
-              <Text style={styles.statusValue}>Sinh hoạt</Text>
-            </Card>
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Card style={styles.statusCard}>
-              <Text style={styles.statusEyebrow}>CẢM BIẾN</Text>
-              <Text style={styles.statusValue}>Đã kết nối</Text>
-            </Card>
+            ))}
           </View>
-        </View>
+        </Card>
 
-        {/* Grouped Settings Cards */}
-        {ACCOUNT_GROUPS.map((group) => (
-          <Card key={group.title} style={styles.groupCard}>
-            <Text style={styles.groupTitle}>{group.title}</Text>
-            <View style={styles.groupItems}>
-              {group.items.map((item: { label: string; value: string }, idx: number) => {
-                const isTierWarning =
-                  item.label === 'Cảnh báo nhảy bậc điện' || item.label === 'Tier warnings';
-                const isPhantomAlert =
-                  item.label === 'Cảnh báo tải chờ ban đêm' || item.label === 'Phantom load alerts';
-                const isToggle = isTierWarning || isPhantomAlert;
+        <QueryBoundary fallback={<ModelSkeleton />} errorMessage="Không tải được thông tin mô hình.">
+          <ModelSection />
+        </QueryBoundary>
 
-                return (
-                  <View key={idx} style={styles.itemRow}>
-                    <Text style={styles.itemLabel}>{item.label}</Text>
-                    {isToggle ? (
-                      <Host matchContents>
-                        <Switch
-                          value={isTierWarning ? tierWarnings : phantomAlerts}
-                          onValueChange={(val) => {
-                            if (isTierWarning) setTierWarnings(val);
-                            else setPhantomAlerts(val);
-                          }}
-                        />
-                      </Host>
-                    ) : item.value ? (
-                      <Text style={styles.itemValue}>{item.value}</Text>
-                    ) : (
-                      <Text style={styles.itemChevron}>›</Text>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          </Card>
-        ))}
+        <InfoRows
+          title="ỨNG DỤNG"
+          rows={[
+            ['Phiên bản', Constants.expoConfig?.version ?? '—'],
+            ['Thời điểm của dữ liệu demo', demoMoment],
+          ]}
+        />
 
-        {/* Sign Out Button */}
-        <Pressable style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>Đăng xuất</Text>
+        <Pressable
+          onPress={confirmReset}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.resetBtn, pressed && { opacity: 0.7 }]}>
+          <Text style={styles.resetText}>Xoá dữ liệu trên máy</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -102,98 +81,13 @@ export function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: WattPrintTokens.colors.neutralGround, // #F2F4ED
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 40,
-    gap: 12,
-  },
-  groundHeader: {
-    paddingHorizontal: 8,
-    gap: 16,
-    paddingBottom: 6,
-  },
-  title: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 24,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: WattPrintTokens.radii.pill,
-    backgroundColor: WattPrintTokens.colors.tertiary, // #B5E930
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 19,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
-  profileInfo: {
-    gap: 2,
-  },
-  userName: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 17,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
-  userEmail: {
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    color: WattPrintTokens.colors.secondary, // #4A6B60
-  },
-  pairedGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  statusCardPressable: {
-    flex: 1,
-  },
-  statusCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: WattPrintTokens.radii.xl, // 20px
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    gap: 5,
-  },
-  statusHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusArrow: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 16,
-    color: WattPrintTokens.colors.accentDeep,
-    lineHeight: 16,
-  },
-  statusEyebrow: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 12,
-    letterSpacing: 0.6,
-    color: WattPrintTokens.colors.accentDeep, // #2F7A0C
-  },
-  statusValue: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 16,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
+  root: { flex: 1, backgroundColor: WattPrintTokens.colors.neutralGround },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40, gap: 12 },
+  groundHeader: { paddingHorizontal: 8, paddingBottom: 6 },
+  title: { fontFamily: Fonts.sansSemiBold, fontSize: 24, color: WattPrintTokens.colors.primary },
   groupCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: WattPrintTokens.radii.xl, // 20px
+    borderRadius: WattPrintTokens.radii.xl,
     paddingVertical: 18,
     paddingHorizontal: 22,
     paddingBottom: 8,
@@ -203,33 +97,17 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.monoMedium,
     fontSize: 12,
     letterSpacing: 0.6,
-    color: WattPrintTokens.colors.accentDeep, // #2F7A0C
+    color: WattPrintTokens.colors.accentDeep,
   },
-  groupItems: {
-    gap: 2,
-  },
+  groupItems: { gap: 2 },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 13,
   },
-  itemLabel: {
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
-  itemValue: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 13,
-    color: WattPrintTokens.colors.secondary, // #4A6B60
-  },
-  itemChevron: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 18,
-    color: WattPrintTokens.colors.secondary, // #4A6B60
-  },
-  signOutBtn: {
+  itemLabel: { fontFamily: Fonts.sans, fontSize: 15, color: WattPrintTokens.colors.primary },
+  resetBtn: {
     backgroundColor: '#FFFFFF',
     borderRadius: WattPrintTokens.radii.pill,
     paddingVertical: 16,
@@ -238,9 +116,5 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 4,
   },
-  signOutText: {
-    fontFamily: Fonts.sansSemiBold,
-    fontSize: 14,
-    color: WattPrintTokens.colors.primary, // #164437
-  },
+  resetText: { fontFamily: Fonts.sansSemiBold, fontSize: 14, color: '#C44536' },
 });

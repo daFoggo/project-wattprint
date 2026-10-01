@@ -1,210 +1,107 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Plus } from 'lucide-react-native';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import type { ActiveExperiment, ExperimentState } from '@/features/energy/types';
+import {
+  APPLIANCE_ICON_ID,
+  NOT_ENOUGH_DAYS,
+  experimentDay,
+  formatKwh,
+  savedSentence,
+} from '@/features/energy/experiment-utils';
+import type { ActiveExperiment } from '@/features/energy/types';
+import { useActiveExperimentProgress } from '@/features/energy/use-experiment-progress';
 
-interface ExperimentStateCardProps {
-  state: ExperimentState;
-  activeExperiment: ActiveExperiment | null;
-  onOpenCreate: () => void;
+import { ApplianceIcon } from './appliance-icon';
+
+interface RunningCardProps {
+  experiment: ActiveExperiment;
   onOpenDetail: () => void;
 }
 
-export function ExperimentStateCard({
-  state,
-  activeExperiment,
-  onOpenCreate,
-  onOpenDetail,
-}: ExperimentStateCardProps) {
-  const isRunning = state === 'running';
-  const isSummary = state === 'summary';
-  const isSuggest = state === 'suggest';
-  const isLocked = state === 'locked';
+/** Thử nghiệm đang chạy: số đo thật của từng thiết bị từ `/demo/experiments/progress`, tiết kiệm chỉ tính trên ngày hoàn chỉnh. */
+export function ExperimentRunningCard({ experiment, onOpenDetail }: RunningCardProps) {
+  const progress = useActiveExperimentProgress(experiment);
+  const day = experimentDay(experiment.startedDate, experiment.totalDays);
+  const baselineTotal = experiment.actions.reduce((sum, a) => sum + a.baselineKwhPerDay, 0);
+  const today = progress.days[progress.days.length - 1];
 
-  let tag = '';
-  let title = '';
-  let note = '';
-  let btnLabel = '';
-  let leftLabel = '';
-  let leftVal = '';
-  let leftUnit = '';
-  let rightLabel = '';
-  let rightVal = '';
-  let rightUnit = '';
-
-  if (isRunning) {
-    const day = activeExperiment?.currentDay ?? 3;
-    const total = activeExperiment?.totalDays ?? 7;
-    tag = `ĐANG CHẠY · NGÀY ${day}/${total}`;
-    title = activeExperiment?.title ?? 'Điều hòa 26,5°C kèm quạt, thay vì 24°C';
-    note = `Đã tiết kiệm ước tính ~${(activeExperiment?.predictedSavedVnd ?? 85000).toLocaleString('vi-VN')} đ. Dữ liệu công tơ đang đo đạc tự động.`;
-    btnLabel = 'Chi tiết & Kết thúc thử nghiệm';
-    leftLabel = 'MỨC NỀN';
-    leftVal = (activeExperiment?.baselineKwh ?? 8.2).toFixed(1);
-    leftUnit = 'kWh/ngày';
-    rightLabel = 'ĐO ĐẠC';
-    rightVal = (activeExperiment?.targetKwh ?? 5.1).toFixed(1);
-    rightUnit = 'kWh/ngày';
-  } else if (isSummary) {
-    tag = 'CHƯA CÓ THỬ NGHIỆM ĐANG CHẠY';
-    title = 'Hoàn tất thử nghiệm gần nhất';
-    note = 'Bạn có thể bắt đầu một thử nghiệm mới với thiết bị khác để tiếp tục tối ưu hóa hóa đơn điện.';
-    btnLabel = 'Bắt đầu thử nghiệm mới';
-    leftLabel = 'ĐÃ TIẾT KIỆM';
-    leftVal = '151k';
-    leftUnit = 'VND';
-    rightLabel = 'THÓI QUEN';
-    rightVal = '3';
-    rightUnit = 'đã duy trì';
-  } else if (isSuggest) {
-    tag = 'GỢI Ý TỐI ƯU CHO BẠN';
-    title = 'Tăng nhiệt độ điều hòa 26,5°C kết hợp quạt thay vì 24°C';
-    note = 'Thử nghiệm trong 7 ngày để tìm mức tiện nghi tối ưu mà không nhảy bậc điện. Bạn có thể tùy chỉnh mốc nhiệt độ và thiết bị trước khi bắt đầu.';
-    btnLabel = 'Bắt đầu thử nghiệm';
-    leftLabel = 'MỨC NỀN';
-    leftVal = '8.2';
-    leftUnit = 'kWh/ngày';
-    rightLabel = 'ƯỚC TÍNH';
-    rightVal = '5.1';
-    rightUnit = 'kWh/ngày';
-  } else {
-    tag = 'ĐANG KHÓA';
-    title = 'Đang ghi nhận mức tiêu thụ nền';
-    note = 'Các thử nghiệm so sánh dựa trên lịch sử đo đạc, công tơ cần thêm 4 ngày ổn định.';
-    btnLabel = 'Khả dụng sau 4 ngày';
-  }
-
-  const handleAction = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-
-    if (isRunning) {
-      onOpenDetail();
-    } else if (isSuggest || isSummary) {
-      onOpenCreate();
-    }
-  };
+  const note =
+    progress.completeDays > 0
+      ? savedSentence(progress.savedKwh, progress.savedVnd, progress.completeDays)
+      : `${NOT_ENOUGH_DAYS}. Hôm nay còn đang đo.`;
 
   return (
-    <View style={[styles.card, isRunning && styles.cardRunning]}>
-      {/* Tag */}
-      <Text style={[styles.tag, isRunning && styles.tagRunning]}>{tag}</Text>
+    <View style={[styles.card, styles.cardRunning]}>
+      <Text style={[styles.tag, styles.tagRunning]}>{`ĐANG CHẠY · NGÀY ${day}/${experiment.totalDays}`}</Text>
+      <Text style={[styles.title, styles.titleRunning]}>{experiment.title}</Text>
 
-      {/* Title */}
-      <Text style={[styles.title, isRunning && styles.titleRunning]}>{title}</Text>
-
-      {/* Comparison Grid */}
-      {!isLocked && (
-        <View style={styles.compareGrid}>
-          {/* Left Box */}
-          <View style={[styles.statBox, isRunning && styles.statBoxDark]}>
-            <Text style={[styles.boxLabel, isRunning && styles.boxLabelDark]}>
-              {leftLabel}
-            </Text>
-            <View style={styles.valRow}>
-              <Text style={[styles.boxVal, isRunning && styles.boxValDark]}>
-                {leftVal}
-              </Text>
-              <Text style={[styles.boxUnit, isRunning && styles.boxUnitDark]}>
-                {leftUnit}
-              </Text>
+      <View style={styles.deviceList}>
+        {experiment.actions.map((a, i) => {
+          const latest = progress.perAppliance[i]?.days.at(-1);
+          return (
+            <View key={a.appliance} style={styles.deviceRow}>
+              <ApplianceIcon name="" id={APPLIANCE_ICON_ID[a.appliance]} size={20} color={WattPrintTokens.colors.tertiary} />
+              <View style={styles.deviceInfo}>
+                <Text style={styles.deviceName}>{a.name}</Text>
+                <Text style={styles.deviceMeta}>
+                  Bớt {a.amount} {a.unitLabel} · nền {formatKwh(a.baselineKwhPerDay)} kWh
+                </Text>
+              </View>
+              <Text style={styles.deviceToday}>{formatKwh(latest?.kwh ?? 0)} kWh</Text>
             </View>
-          </View>
+          );
+        })}
+      </View>
 
-          {/* Right Box */}
-          <View style={[styles.statBox, isRunning && styles.statBoxDark]}>
-            <Text style={[styles.boxLabel, isRunning && styles.boxLabelDark]}>
-              {rightLabel}
-            </Text>
-            <View style={styles.valRow}>
-              <Text
-                style={[
-                  styles.boxVal,
-                  styles.boxValAccent,
-                  isRunning && styles.boxValAccentDark,
-                ]}>
-                {rightVal}
-              </Text>
-              <Text style={[styles.boxUnit, isRunning && styles.boxUnitDark]}>
-                {rightUnit}
-              </Text>
-            </View>
+      <View style={styles.compareGrid}>
+        <View style={[styles.statBox, styles.statBoxDark]}>
+          <Text style={[styles.boxLabel, styles.boxLabelDark]}>TỔNG MỨC NỀN</Text>
+          <View style={styles.valRow}>
+            <Text style={[styles.boxVal, styles.boxValDark]}>{formatKwh(baselineTotal)}</Text>
+            <Text style={[styles.boxUnit, styles.boxUnitDark]}>kWh/ngày</Text>
           </View>
         </View>
-      )}
-
-      {/* Progress Track if running */}
-      {isRunning && (
-        <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Tiến độ thử nghiệm</Text>
-            <Text style={styles.progressValue}>
-              {activeExperiment?.currentDay ?? 3} / {activeExperiment?.totalDays ?? 7} ngày
-            </Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressBar,
-                {
-                  width: `${Math.round(
-                    ((activeExperiment?.currentDay ?? 3) /
-                      (activeExperiment?.totalDays ?? 7)) *
-                      100
-                  )}%`,
-                },
-              ]}
-            />
+        <View style={[styles.statBox, styles.statBoxDark]}>
+          <Text style={[styles.boxLabel, styles.boxLabelDark]}>HÔM NAY ĐẾN GIỜ</Text>
+          <View style={styles.valRow}>
+            <Text style={[styles.boxVal, styles.boxValAccent, styles.boxValAccentDark]}>{formatKwh(today?.kwh ?? 0)}</Text>
+            <Text style={[styles.boxUnit, styles.boxUnitDark]}>kWh</Text>
           </View>
         </View>
-      )}
+      </View>
 
-      {/* Note */}
-      <Text style={[styles.note, isRunning && styles.noteRunning]}>{note}</Text>
+      <View style={styles.progressContainer}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressLabel}>Tiến độ thử nghiệm</Text>
+          <Text style={styles.progressValue}>
+            {day} / {experiment.totalDays} ngày
+          </Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressBar, { width: `${Math.round((day / experiment.totalDays) * 100)}%` }]} />
+        </View>
+      </View>
 
-      {/* Actions */}
+      <Text style={[styles.note, styles.noteRunning]}>{note}</Text>
+
       <View style={styles.btnRow}>
         <Pressable
-          onPress={isLocked ? undefined : handleAction}
+          onPress={() => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } catch {}
+            onOpenDetail();
+          }}
+          accessibilityRole="button"
           style={({ pressed }) => [
             styles.actionBtn,
-            isRunning && styles.actionBtnRunning,
-            isLocked && styles.actionBtnLocked,
+            styles.actionBtnRunning,
             pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] },
           ]}>
-          <Text
-            style={[
-              styles.actionBtnText,
-              isRunning && styles.actionBtnTextRunning,
-              isLocked && styles.actionBtnTextLocked,
-            ]}>
-            {btnLabel}
-          </Text>
+          <Text style={[styles.actionBtnText, styles.actionBtnTextRunning]}>CHI TIẾT VÀ KẾT THÚC</Text>
         </Pressable>
-
-        {/* Secondary button if in suggest mode */}
-        {isSuggest && (
-          <Pressable
-            onPress={() => {
-              try {
-                Haptics.selectionAsync();
-              } catch {}
-              onOpenCreate();
-            }}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              pressed && { opacity: 0.7 },
-            ]}>
-            <View style={styles.secondaryBtnContent}>
-              <Plus size={14} color={WattPrintTokens.colors.primary} strokeWidth={2.4} />
-              <Text style={styles.secondaryBtnText}>Tùy chỉnh thiết bị khác</Text>
-            </View>
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -344,9 +241,6 @@ const styles = StyleSheet.create({
   actionBtnRunning: {
     backgroundColor: WattPrintTokens.colors.tertiary, // #B5E930
   },
-  actionBtnLocked: {
-    backgroundColor: '#D1D5DB',
-  },
   actionBtnText: {
     fontFamily: Fonts.monoMedium,
     fontSize: 13,
@@ -356,22 +250,35 @@ const styles = StyleSheet.create({
   actionBtnTextRunning: {
     color: WattPrintTokens.colors.primary, // #164437
   },
-  actionBtnTextLocked: {
-    color: '#6B7280',
+  deviceList: {
+    gap: 8,
   },
-  secondaryBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-  },
-  secondaryBtnContent: {
+  deviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: WattPrintTokens.radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  secondaryBtnText: {
+  deviceInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  deviceName: {
     fontFamily: Fonts.sansMedium,
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+  deviceMeta: {
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    color: WattPrintTokens.colors.inkInverseMuted,
+  },
+  deviceToday: {
+    fontFamily: Fonts.monoMedium,
     fontSize: 13,
-    color: WattPrintTokens.colors.accentDeep, // #2F7A0C
+    color: WattPrintTokens.colors.tertiary,
   },
 });

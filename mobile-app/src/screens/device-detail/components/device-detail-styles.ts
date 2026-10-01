@@ -61,6 +61,19 @@ export const styles = StyleSheet.create({
   pillLabelActive: {
     color: '#FFFFFF',
   },
+  switcherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   identityBlock: {
     alignItems: 'center',
     gap: 8,

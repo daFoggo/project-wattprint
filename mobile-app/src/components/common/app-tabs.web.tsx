@@ -19,7 +19,7 @@ export default function AppTabs() {
           <TabTrigger name="index" href="/" asChild>
             <TabButton>Trang chủ</TabButton>
           </TabTrigger>
-          <TabTrigger name="usage" href="/usage/index" asChild>
+          <TabTrigger name="usage" href="/usage" asChild>
             <TabButton>Tiêu thụ</TabButton>
           </TabTrigger>
           <TabTrigger name="copilot" href="/copilot" asChild>

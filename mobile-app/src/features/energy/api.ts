@@ -108,13 +108,15 @@ export interface ApplianceRuns {
   runs: { start: string; end: string; minutes: number; energy_kwh: number; peak_power_w: number }[];
 }
 
-export const alertsQueryOptions = (customer: Customer) =>
+export const alertsQueryOptions = (customer: Customer, mute: string[] = []) =>
   queryOptions({
-    queryKey: [...energyKeys.all, 'alerts', customer, DEMO_NOW] as const,
+    queryKey: [...energyKeys.all, 'alerts', customer, mute, DEMO_NOW] as const,
     queryFn: () =>
-      apiClient.get<{ items: AlertOut[] }>('/demo/alerts', {
-        params: { asof: new Date(DEMO_NOW).toISOString(), customer },
-      }),
+      // `mute` lặp lại nhiều lần trên URL, còn `params` của api-client chỉ nhận giá trị đơn
+      apiClient.get<{ items: AlertOut[] }>(
+        `/demo/alerts${mute.length ? `?${mute.map((c) => `mute=${c}`).join('&')}` : ''}`,
+        { params: { asof: new Date(DEMO_NOW).toISOString(), customer } }
+      ),
     select: (d) => d.items,
   });
 
@@ -128,8 +130,8 @@ export const timelineQueryOptions = () =>
     select: (d) => d.items,
   });
 
-export function useAlerts(customer: Customer = 'household') {
-  return useSuspenseQuery(alertsQueryOptions(customer));
+export function useAlerts(customer: Customer = 'household', mute: string[] = []) {
+  return useSuspenseQuery(alertsQueryOptions(customer, mute));
 }
 
 export function useTimeline() {
@@ -240,4 +242,202 @@ export function useDashboard(range: DashboardRange) {
       devices: toDevices(u.devices),
     }),
   });
+}
+
+// ───────────────────── Hộ gia đình & mô hình: `GET /demo/household` ─────────────────────
+export interface HouseholdInfo {
+  household: {
+    id: string | null;
+    name: string;
+    dataset: string;
+    country: string;
+    dataset_license: string;
+    period: { start: string; end: string };
+    sampling_interval_seconds: number;
+    valid_days: number;
+    missing_pct: number;
+    aggregate_energy_kwh: number;
+    metered_pct: number;
+    held_out: boolean;
+    appliances: { key: string; name: string; kind: 'appliance' | 'residual' }[];
+  };
+  model: {
+    name: string;
+    parameters: number;
+    window_minutes: number;
+    sampling: string;
+    paper: string;
+  };
+}
+
+export const householdQueryOptions = () =>
+  queryOptions({
+    queryKey: [...energyKeys.all, 'household'] as const,
+    queryFn: () => apiClient.get<HouseholdInfo>('/demo/household'),
+    staleTime: Infinity, // dữ liệu mô tả bộ dữ liệu, không đổi trong phiên
+  });
+
+export function useHousehold() {
+  return useSuspenseQuery(householdQueryOptions());
+}
+
+// ───────────────── Trợ lý AI: `GET /demo/copilot/suggestions`, `POST /demo/copilot/ask` ─────────────────
+export type CopilotIntent =
+  | 'bill_change'
+  | 'tier_budget'
+  | 'standby'
+  | 'top_appliance'
+  | 'ac_runtime'
+  | 'heater_timing'
+  | 'fridge_cycles'
+  | 'forecast'
+  | 'saving_plan'
+  | 'month_compare'
+  | 'unknown';
+
+export type ExperimentAppliance = 'AC' | 'WaterHeater' | 'WashingMachine';
+
+export interface CopilotSuggestion {
+  intent: CopilotIntent;
+  question: string;
+  category: string;
+}
+
+export interface CopilotAnswer {
+  intent: CopilotIntent;
+  question: string;
+  category: string;
+  /** Kỳ mà câu trả lời nói tới, vd `THÁNG 8`. */
+  period: string;
+  text: string;
+  facts: { label: string; value: string }[];
+  action: { kind: 'experiment'; appliance: ExperimentAppliance; label: string } | null;
+}
+
+export const suggestionsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...energyKeys.all, 'copilot-suggestions', DEMO_NOW] as const,
+    queryFn: () =>
+      apiClient.get<{ items: CopilotSuggestion[] }>('/demo/copilot/suggestions', {
+        params: { asof: new Date(DEMO_NOW).toISOString() },
+      }),
+    select: (d) => d.items,
+  });
+
+export function useSuggestions() {
+  return useSuspenseQuery(suggestionsQueryOptions());
+}
+
+/** Hỏi trợ lý: truyền `intent` (câu gợi ý) hoặc `question` (gõ tay). Không lưu cache. */
+export function askCopilot(input: { question?: string; intent?: CopilotIntent }) {
+  return apiClient.post<CopilotAnswer>('/demo/copilot/ask', input, {
+    params: { asof: new Date(DEMO_NOW).toISOString() },
+  });
+}
+
+// ──────────── Thử nghiệm: `GET /demo/experiments/templates`, `GET /demo/experiments/progress` ────────────
+export interface ExperimentBaseline {
+  lookback_days: number;
+  kwh_per_day: number;
+  minutes_per_day: number;
+  runs_per_day: number;
+  avg_power_w: number | null;
+  kwh_per_run: number | null;
+}
+
+export interface ExperimentTemplate {
+  appliance: ExperimentAppliance;
+  name: string;
+  title: string;
+  description: string;
+  knob: 'minutes_per_day' | 'runs_per_week';
+  unit_label: string;
+  slider: { min: number; max: number; step: number; default: number };
+  /** kWh mỗi ngày tiết kiệm được cho mỗi đơn vị của thanh trượt. */
+  kwh_per_day_per_unit: number;
+  vnd_per_kwh: number;
+  baseline: ExperimentBaseline;
+  available: boolean;
+}
+
+export interface ExperimentProgress {
+  appliance: ExperimentAppliance;
+  since: string;
+  baseline: ExperimentBaseline;
+  days: { date: string; kwh: number; minutes: number; runs: number; complete: boolean }[];
+  saved_kwh: number;
+  saved_vnd: number;
+}
+
+export const experimentTemplatesQueryOptions = () =>
+  queryOptions({
+    queryKey: [...energyKeys.all, 'experiment-templates', DEMO_NOW] as const,
+    queryFn: () =>
+      apiClient.get<{ items: ExperimentTemplate[] }>('/demo/experiments/templates', {
+        params: { asof: new Date(DEMO_NOW).toISOString() },
+      }),
+    select: (d) => d.items,
+  });
+
+export function useExperimentTemplates() {
+  return useSuspenseQuery(experimentTemplatesQueryOptions());
+}
+
+export const experimentProgressQueryOptions = (appliance: ExperimentAppliance, since: string) =>
+  queryOptions({
+    queryKey: [...energyKeys.all, 'experiment-progress', appliance, since, DEMO_NOW] as const,
+    queryFn: () =>
+      apiClient.get<ExperimentProgress>('/demo/experiments/progress', {
+        params: { appliance, since, asof: new Date(DEMO_NOW).toISOString() },
+      }),
+  });
+
+export function useExperimentProgress(appliance: ExperimentAppliance, since: string) {
+  return useSuspenseQuery(experimentProgressQueryOptions(appliance, since));
+}
+
+/** Một việc trong thử nghiệm: giảm `amount` (theo `unit_label`) của một thiết bị. */
+export interface ExperimentActionOut {
+  appliance: ExperimentAppliance;
+  name: string;
+  knob: 'minutes_per_day' | 'runs_per_week';
+  unit_label: string;
+  amount: number;
+  slider: { min: number; max: number; step: number };
+  kwh_per_day_per_unit: number;
+  saves_kwh_per_day: number;
+}
+
+export interface ExperimentProposal {
+  id: string;
+  /** `scenario`: kịch bản chạy nhiều thiết bị cùng lúc. */
+  kind: 'single' | 'scenario';
+  title: string;
+  summary: string;
+  /** Vì sao đề xuất, bằng số liệu của chính hộ này. */
+  reason: string;
+  appliances: ExperimentAppliance[];
+  actions: ExperimentActionOut[];
+  impact: { kwh_per_day: number; kwh_per_month: number; vnd_per_month: number };
+  /** Đề xuất nên thử đầu tiên; luôn nằm đầu danh sách. */
+  featured: boolean;
+}
+
+export interface ExperimentProposals {
+  vnd_per_kwh: number;
+  baselines: Partial<Record<ExperimentAppliance, ExperimentBaseline>>;
+  items: ExperimentProposal[];
+}
+
+export const experimentProposalsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...energyKeys.all, 'experiment-proposals', DEMO_NOW] as const,
+    queryFn: () =>
+      apiClient.get<ExperimentProposals>('/demo/experiments/proposals', {
+        params: { asof: new Date(DEMO_NOW).toISOString() },
+      }),
+  });
+
+export function useExperimentProposals() {
+  return useSuspenseQuery(experimentProposalsQueryOptions());
 }

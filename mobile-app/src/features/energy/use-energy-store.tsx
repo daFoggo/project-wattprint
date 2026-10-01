@@ -1,394 +1,332 @@
-import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren } from 'react';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  CURRENT_TIER,
-  DAYS_LEFT,
-  DEFAULT_ACTIVE_EXPERIMENT,
-  HEADROOM,
-  INITIAL_CHAT,
-  MOCK_CHAT_THREADS,
-  MOCK_EXP_LOG,
-  MOCK_SUGGESTIONS,
-  MONTH_KWH,
-  PACE,
-} from './mock';
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from 'react';
+
+import { DEFAULT_ALERT_PREFS, type AlertPrefs } from './alert-prefs';
+import { askCopilot, type CopilotAnswer, type CopilotIntent, type ExperimentAppliance } from './api';
 import type {
   ActiveExperiment,
-  BreakdownView,
   BubbleDevice,
   ChatMessage,
   ChatThread,
-  CustomerType,
   EmotionType,
   ExperimentLogItem,
-  ExperimentState,
-  Range,
-  TariffPlan,
   UnitMode,
   UsageTab,
 } from './types';
 
-interface EnergyStoreValue {
-  // Legacy / Common
-  range: Range;
-  tariff: TariffPlan;
-  setRange: (range: Range) => void;
-  setTariff: (tariff: TariffPlan) => void;
+const STORAGE_KEY = 'wattprint.assistant.v1';
+export const NEW_THREAD_TITLE = 'Cuộc hội thoại mới';
+export const GREETING =
+  'Xin chào. Tôi trả lời bằng số liệu điện của chính nhà bạn: tiền điện và bậc giá, dự báo cuối tháng, thiết bị tốn điện nhất, điều hoà, bình nóng lạnh, tủ lạnh và tải chạy nền. Bạn muốn xem gì?';
+/** Câu hỏi của các cuộc hội thoại mẫu: trả lời thật từ backend khi mở app lần đầu. */
+const EXAMPLE_INTENTS: CopilotIntent[] = ['saving_plan', 'month_compare', 'top_appliance'];
+const FAILED_TEXT = 'Chưa lấy được câu trả lời từ máy chủ. Kiểm tra kết nối rồi hỏi lại nhé.';
 
-  // Unit toggle (kWh ⇄ VND)
+/** Những gì giữ lại giữa các lần mở app: cuộc hội thoại, thử nghiệm đang chạy và đã xong. */
+interface Persisted {
+  threads: ChatThread[];
+  activeExperiment: ActiveExperiment | null;
+  experimentLogs: ExperimentLogItem[];
+  alertPrefs: AlertPrefs;
+  /** Đã tạo sẵn các cuộc hội thoại mẫu chưa (chỉ làm một lần, trừ khi xoá dữ liệu trên máy). */
+  seeded: boolean;
+}
+
+interface EnergyStoreValue {
+  // Kỳ xem và đơn vị dùng chung giữa Trang chủ / Tiêu thụ
   unit: UnitMode;
   toggleUnit: () => void;
-
-  // Usage Screen State
   usageTab: UsageTab;
   setUsageTab: (tab: UsageTab) => void;
-  breakdownView: BreakdownView;
-  setBreakdownView: (view: BreakdownView) => void;
   selectedDeviceIndex: number;
   setSelectedDeviceIndex: (index: number) => void;
+  /** Thiết bị đang xem chi tiết; màn `usage/device` đọc từ đây. */
   activeDeviceDetail: BubbleDevice | null;
   setActiveDeviceDetail: (device: BubbleDevice | null) => void;
-  customerType: CustomerType;
-  setCustomerType: (type: CustomerType) => void;
-  chartBreakdown: 'tou' | 'tier';
-  setChartBreakdown: (mode: 'tou' | 'tier') => void;
 
-  // Copilot Chat State
+  // Tài khoản
+  alertPrefs: AlertPrefs;
+  setAlertPref: (key: keyof AlertPrefs, value: boolean) => void;
+  /** Xoá cuộc hội thoại, thử nghiệm và công tắc thông báo đã lưu trên máy. */
+  resetLocalData: () => void;
+
+  // Trợ lý AI
   threads: ChatThread[];
-  activeThreadId: string | null;
-  setActiveThreadId: (id: string | null) => void;
-  createThread: (title?: string) => string;
-  /** Mở cuộc hội thoại mới với câu hỏi và lời giải đáp dựng sẵn từ số liệu. */
-  openInsightThread: (question: string, answer: string) => void;
-  sendChatMessageToThread: (threadId: string, text: string) => void;
-  chatMessages: ChatMessage[];
-  sendChatMessage: (query: string) => void;
+  createThread: () => string;
+  /** Hỏi trong một cuộc hội thoại. `intent` cho câu gợi ý, bỏ trống thì trợ lý tự hiểu `text`. */
+  askInThread: (threadId: string, input: { text: string; intent?: CopilotIntent }) => Promise<void>;
+  /** Mở cuộc hội thoại có sẵn câu hỏi và câu trả lời (vd từ thẻ gợi ý ở trang Tiêu thụ). */
+  openInsightThread: (question: string, answer: string) => string;
 
-  // Experiment State
-  experimentState: ExperimentState;
-  setExperimentState: (state: ExperimentState) => void;
-  experimentTemp: number;
-  setExperimentTemp: React.Dispatch<React.SetStateAction<number>>;
+  // Thử nghiệm
+  /** Thiết bị mà trợ lý đề nghị thử; màn Thử nghiệm mở sẵn tờ tạo với thiết bị này. */
+  experimentDraft: ExperimentAppliance | null;
+  setExperimentDraft: (appliance: ExperimentAppliance | null) => void;
   activeExperiment: ActiveExperiment | null;
-  setActiveExperiment: (exp: ActiveExperiment | null) => void;
   experimentLogs: ExperimentLogItem[];
   startExperiment: (exp: ActiveExperiment) => void;
-  endExperiment: (emotion: EmotionType) => void;
+  endExperiment: (
+    emotion: EmotionType,
+    result: { savedKwh: number; savedVnd: number; days: number; dateRange: string }
+  ) => void;
 }
 
 const EnergyStoreContext = createContext<EnergyStoreValue | null>(null);
 
+function uid(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function aiMessage(a: CopilotAnswer): ChatMessage {
+  return {
+    id: uid('ai'),
+    who: 'ai',
+    text: a.text,
+    facts: a.facts.map((f) => ({ k: f.label, v: f.value })),
+    action: a.action,
+  };
+}
+
 export function EnergyStoreProvider({ children }: PropsWithChildren) {
-  const [range, setRange] = useState<Range>('week');
-  const [tariff, setTariff] = useState<TariffPlan>('tiered');
   const [unit, setUnit] = useState<UnitMode>('kwh');
   const [usageTab, setUsageTab] = useState<UsageTab>('week');
-  const [breakdownView, setBreakdownView] = useState<BreakdownView>('bubble');
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
   const [activeDeviceDetail, setActiveDeviceDetail] = useState<BubbleDevice | null>(null);
-  const [customerType, setCustomerType] = useState<CustomerType>('home');
-  const [chartBreakdown, setChartBreakdown] = useState<'tou' | 'tier'>('tier');
-  const [threads, setThreads] = useState<ChatThread[]>(MOCK_CHAT_THREADS);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
-  const [experimentState, setExperimentState] = useState<ExperimentState>('running');
-  const [experimentTemp, setExperimentTemp] = useState<number>(26.5);
-  const [activeExperiment, setActiveExperiment] = useState<ActiveExperiment | null>(DEFAULT_ACTIVE_EXPERIMENT);
-  const [experimentLogs, setExperimentLogs] = useState<ExperimentLogItem[]>(MOCK_EXP_LOG);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [experimentDraft, setExperimentDraft] = useState<ExperimentAppliance | null>(null);
+  const [activeExperiment, setActiveExperiment] = useState<ActiveExperiment | null>(null);
+  const [experimentLogs, setExperimentLogs] = useState<ExperimentLogItem[]>([]);
+  const [alertPrefs, setAlertPrefs] = useState<AlertPrefs>(DEFAULT_ALERT_PREFS);
+  const [seeded, setSeeded] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
-  const startExperiment = useCallback((exp: ActiveExperiment) => {
-    setActiveExperiment(exp);
-    setExperimentState('running');
-  }, []);
-
-  const endExperiment = useCallback((emotion: EmotionType) => {
-    if (activeExperiment) {
-      const savedVnd = activeExperiment.predictedSavedVnd;
-      const savedKwh = Math.round(activeExperiment.predictedSavedKwh * activeExperiment.currentDay * 10) / 10;
-      const newLogItem: ExperimentLogItem = {
-        id: `exp-${Date.now()}`,
-        title: activeExperiment.title,
-        date: 'Hôm nay (3 ngày)',
-        savedVnd,
-        savedKwh,
-        good: emotion !== 'uncomfortable',
-        emotion,
-        note: emotion === 'comfortable' ? 'Thoải mái, sinh hoạt bình thường' : emotion === 'neutral' ? 'Bình thường, quen dần' : 'Bất tiện, cần điều chỉnh',
-      };
-      setExperimentLogs((prev) => [newLogItem, ...prev]);
-    }
-    setActiveExperiment(null);
-    setExperimentState('summary');
-  }, [activeExperiment]);
-
-  const toggleUnit = () => {
-    setUnit((prev) => (prev === 'kwh' ? 'cost' : 'kwh'));
-  };
-
-  const createThread = useCallback((title?: string): string => {
-    const newId = `thread-${Date.now()}`;
-    const newThread: ChatThread = {
-      id: newId,
-      title: title || 'Cuộc hội thoại mới',
-      category: 'CHUNG',
-      period: 'HÔM NAY',
-      timeAgo: 'Vừa xong',
-      group: 'today',
-      dotColor: '#B5E930',
-      messages: [
-        {
-          id: `msg-${Date.now()}`,
-          who: 'ai',
-          text: 'Chào buổi tối. Công tơ điện của bạn đang hoạt động và đã đồng bộ dữ liệu 30 ngày qua. Hãy hỏi về bất kỳ chỉ số nào để xem chi tiết nguồn gốc.',
-          facts: [],
-        },
-      ],
+  // Khôi phục khi mở app. Câu trả lời đang chờ của lần trước không còn ai đợi nên đánh dấu lỗi.
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (!alive || !raw) return;
+        const saved = JSON.parse(raw) as Partial<Persisted>;
+        setThreads(
+          (saved.threads ?? []).map((t) => ({
+            ...t,
+            messages: t.messages.map((m) =>
+              m.state === 'pending' ? { ...m, state: 'failed' as const, text: FAILED_TEXT } : m
+            ),
+          }))
+        );
+        // bản lưu của kiểu thử nghiệm một thiết bị (chưa có `actions`) không dùng được nữa
+        const exp = saved.activeExperiment;
+        setActiveExperiment(exp && Array.isArray(exp.actions) ? exp : null);
+        setExperimentLogs((saved.experimentLogs ?? []).filter((l) => Array.isArray(l.devices)));
+        setAlertPrefs({ ...DEFAULT_ALERT_PREFS, ...saved.alertPrefs });
+        setSeeded(saved.seeded ?? (saved.threads?.length ?? 0) > 0);
+      })
+      .catch(() => {})
+      .finally(() => alive && setHydrated(true));
+    return () => {
+      alive = false;
     };
-
-    setThreads((prev) => [newThread, ...prev]);
-    setActiveThreadId(newId);
-    return newId;
   }, []);
 
-  const openInsightThread = useCallback((question: string, answer: string) => {
-    const id = `thread-${Date.now()}`;
+  useEffect(() => {
+    if (!hydrated) return;
+    const data: Persisted = { threads, activeExperiment, experimentLogs, alertPrefs, seeded };
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
+  }, [hydrated, threads, activeExperiment, experimentLogs, alertPrefs, seeded]);
+
+  // Lần đầu (hoặc sau khi xoá dữ liệu): tạo vài cuộc hội thoại mẫu bằng câu trả lời thật của backend
+  useEffect(() => {
+    if (!hydrated || seeded) return;
+    let alive = true;
+    Promise.allSettled(EXAMPLE_INTENTS.map((intent) => askCopilot({ intent }))).then((results) => {
+      if (!alive) return;
+      const now = Date.now();
+      const made: ChatThread[] = [];
+      results.forEach((r, i) => {
+        if (r.status !== 'fulfilled') return;
+        const a = r.value;
+        made.push({
+          id: uid('thread'),
+          title: a.question,
+          category: a.category,
+          period: a.period,
+          updatedAt: now - i * 1000, // giữ đúng thứ tự khi xếp theo thời gian
+          messages: [{ id: uid('me'), who: 'me', text: a.question }, aiMessage(a)],
+        });
+      });
+      if (made.length === 0) return; // không có mạng: thử lại ở lần mở sau
+      setThreads((prev) => [...prev, ...made]);
+      setSeeded(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [hydrated, seeded]);
+
+  const setAlertPref = useCallback(
+    (key: keyof AlertPrefs, value: boolean) => setAlertPrefs((prev) => ({ ...prev, [key]: value })),
+    []
+  );
+
+  const resetLocalData = useCallback(() => {
+    setThreads([]);
+    setActiveExperiment(null);
+    setExperimentLogs([]);
+    setExperimentDraft(null);
+    setAlertPrefs(DEFAULT_ALERT_PREFS);
+    setSeeded(false); // tạo lại các cuộc hội thoại mẫu
+  }, []);
+
+  const toggleUnit = useCallback(() => setUnit((prev) => (prev === 'kwh' ? 'cost' : 'kwh')), []);
+
+  const createThread = useCallback((): string => {
+    const id = uid('thread');
+    const thread: ChatThread = {
+      id,
+      title: NEW_THREAD_TITLE,
+      category: 'CHUNG',
+      period: '',
+      updatedAt: Date.now(),
+      messages: [{ id: uid('ai'), who: 'ai', text: GREETING, facts: [] }],
+    };
+    setThreads((prev) => [thread, ...prev]);
+    return id;
+  }, []);
+
+  const openInsightThread = useCallback((question: string, answer: string): string => {
+    const id = uid('thread');
     const thread: ChatThread = {
       id,
       title: question,
       category: 'TIÊU THỤ',
-      period: 'KỲ NÀY',
-      timeAgo: 'Vừa xong',
-      group: 'today',
-      dotColor: '#B5E930',
+      period: '',
+      updatedAt: Date.now(),
       messages: [
-        { id: `${id}-q`, who: 'me', text: question },
-        { id: `${id}-a`, who: 'ai', text: answer, facts: [] },
+        { id: uid('me'), who: 'me', text: question },
+        { id: uid('ai'), who: 'ai', text: answer, facts: [] },
       ],
     };
     setThreads((prev) => [thread, ...prev]);
-    setActiveThreadId(id);
+    return id;
   }, []);
 
-  const sendChatMessageToThread = useCallback((threadId: string, text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+  const askInThread = useCallback(
+    async (threadId: string, input: { text: string; intent?: CopilotIntent }) => {
+      const text = input.text.trim();
+      if (!text) return;
+      const pendingId = uid('ai');
+      const patch = (fn: (t: ChatThread) => ChatThread) =>
+        setThreads((prev) => prev.map((t) => (t.id === threadId ? fn(t) : t)));
 
-    const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
-      who: 'me',
-      text: trimmed,
-    };
-
-    const hit = MOCK_SUGGESTIONS.find((s) => s.q.toLowerCase() === trimmed.toLowerCase());
-    const budget = HEADROOM / DAYS_LEFT;
-
-    let aiMsg: ChatMessage;
-    if (hit) {
-      let ansText = hit.a;
-      let facts = Array.isArray(hit.facts) ? hit.facts : [];
-
-      if (hit.a === 'TIER_ANSWER') {
-        ansText = `Bạn đã dùng ${MONTH_KWH} kWh và còn ${DAYS_LEFT} ngày nữa trong chu kỳ. Để duy trì ở ${CURRENT_TIER.name.toLowerCase()}, bạn cần giữ mức dùng ${budget.toFixed(1)} kWh/ngày so với mức ${PACE.toFixed(1)} hiện tại. Chuyển bình nóng lạnh sang khung giờ 22:00 sẽ bù đắp được khoảng một nửa khoảng cách này.`;
-        facts = [
-          { k: 'Đã dùng đến nay', v: `${MONTH_KWH} kWh` },
-          { k: 'Mức dự phòng', v: `${HEADROOM} kWh` },
-          { k: 'Hạn mức ngày', v: `${budget.toFixed(1)} kWh` },
-        ];
-      } else if (hit.a === 'PHANTOM_ANSWER') {
-        const W = 35;
-        const kwh = (W * 24 * 30) / 1000;
-        const vnd = kwh * CURRENT_TIER.price;
-        ansText = `Từ 02:00 đến 05:00 sáng, công suất nền ổn định ở mức ${W} W sau khi loại trừ chu kỳ tủ lạnh. Mức này tiêu tốn khoảng ${kwh.toFixed(0)} kWh/tháng từ cụm TV và modem wifi, tính theo bậc cận biên (${CURRENT_TIER.name.toLowerCase()}), tương đương khoảng ${Math.round(vnd).toLocaleString('vi-VN')} đ.`;
-        facts = [
-          { k: 'Công suất chờ', v: `${W} W` },
-          { k: 'Lãng phí hàng tháng', v: `${kwh.toFixed(0)} kWh` },
-          { k: `Tính theo ${CURRENT_TIER.name}`, v: `${Math.round(vnd).toLocaleString('vi-VN')} đ` },
-        ];
-      }
-
-      aiMsg = {
-        id: `ai-${Date.now() + 1}`,
-        who: 'ai',
-        text: ansText,
-        facts,
-        cta: hit.cta,
-        ctaDesc: hit.ctaDesc,
-      };
-    } else {
-      aiMsg = {
-        id: `ai-${Date.now() + 1}`,
-        who: 'ai',
-        text: 'Tôi đã đối chiếu số liệu với công tơ, thời tiết và biểu phí EVN hiện hành. Không có yếu tố đơn lẻ nào trong 30 ngày qua giải thích cho sự chênh lệch này, mức biến động vẫn nằm trong giới hạn bình thường.',
-        facts: [
-          { k: 'Số ngày đồng bộ', v: '30' },
-          { k: 'Độ tin cậy', v: 'Trung bình' },
+      patch((t) => ({
+        ...t,
+        updatedAt: Date.now(),
+        messages: [
+          ...t.messages,
+          { id: uid('me'), who: 'me', text },
+          { id: pendingId, who: 'ai', text: '', state: 'pending' },
         ],
-      };
-    }
+      }));
 
-    setThreads((prev) =>
-      prev.map((th) => {
-        if (th.id === threadId) {
-          const isNewInquiry = th.title === 'Cuộc hội thoại mới' || th.title === 'New inquiry';
-          const newTitle = isNewInquiry ? trimmed : th.title;
-          let newCategory = th.category;
-          let newDotColor = th.dotColor;
-          if (isNewInquiry) {
-            const lower = trimmed.toLowerCase();
-            if (lower.includes('bill') || lower.includes('tier') || lower.includes('bậc') || lower.includes('hóa đơn')) {
-              newCategory = 'HÓA ĐƠN';
-              newDotColor = '#2F7A0C';
-            } else if (lower.includes('ac') || lower.includes('air') || lower.includes('điều hòa')) {
-              newCategory = 'ĐIỀU HÒA';
-              newDotColor = '#B5E930';
-            } else if (lower.includes('phantom') || lower.includes('standby') || lower.includes('chạy ngầm') || lower.includes('chờ')) {
-              newCategory = 'CHẠY NGẦM';
-              newDotColor = '#4A6B60';
-            } else if (lower.includes('water') || lower.includes('heat') || lower.includes('nóng lạnh')) {
-              newCategory = 'BÌNH NÓNG LẠNH';
-              newDotColor = '#B5E930';
-            } else if (lower.includes('fridge') || lower.includes('tủ lạnh')) {
-              newCategory = 'TỦ LẠNH';
-              newDotColor = '#164437';
-            } else if (lower.includes('cook') || lower.includes('bếp')) {
-              newCategory = 'BẾP TỪ';
-              newDotColor = '#8CD41C';
-            }
-          }
+      try {
+        const answer = await askCopilot(input.intent ? { intent: input.intent } : { question: text });
+        patch((t) => {
+          const first = t.title === NEW_THREAD_TITLE;
           return {
-            ...th,
-            title: newTitle,
-            category: newCategory,
-            dotColor: newDotColor,
-            timeAgo: 'Vừa xong',
-            messages: [...th.messages, userMsg, aiMsg],
+            ...t,
+            title: first ? text : t.title,
+            category: answer.intent === 'unknown' ? t.category : answer.category,
+            period: answer.intent === 'unknown' ? t.period : answer.period,
+            updatedAt: Date.now(),
+            messages: t.messages.map((m) => (m.id === pendingId ? { ...aiMessage(answer), id: pendingId } : m)),
           };
-        }
-        return th;
-      })
-    );
+        });
+      } catch {
+        patch((t) => ({
+          ...t,
+          messages: t.messages.map((m) =>
+            m.id === pendingId ? { id: pendingId, who: 'ai', text: FAILED_TEXT, state: 'failed' } : m
+          ),
+        }));
+      }
+    },
+    []
+  );
+
+  const startExperiment = useCallback((exp: ActiveExperiment) => {
+    setActiveExperiment(exp);
+    setExperimentDraft(null);
   }, []);
 
-  const sendChatMessage = useCallback((query: string) => {
-    if (activeThreadId) {
-      sendChatMessageToThread(activeThreadId, query);
-    }
-    const trimmed = query.trim();
-    if (!trimmed) return;
-
-    const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
-      who: 'me',
-      text: trimmed,
-    };
-
-    const hit = MOCK_SUGGESTIONS.find((s) => s.q.toLowerCase() === trimmed.toLowerCase());
-    const budget = HEADROOM / DAYS_LEFT;
-
-    let aiMsg: ChatMessage;
-    if (hit) {
-      let text = hit.a;
-      let facts = Array.isArray(hit.facts) ? hit.facts : [];
-
-      if (hit.a === 'TIER_ANSWER') {
-        text = `Bạn đã dùng ${MONTH_KWH} kWh và còn ${DAYS_LEFT} ngày nữa trong chu kỳ. Để duy trì ở ${CURRENT_TIER.name.toLowerCase()}, bạn cần giữ mức dùng ${budget.toFixed(1)} kWh/ngày so với mức ${PACE.toFixed(1)} hiện tại. Chuyển bình nóng lạnh sang khung giờ 22:00 sẽ bù đắp được khoảng một nửa khoảng cách này.`;
-        facts = [
-          { k: 'Đã dùng đến nay', v: `${MONTH_KWH} kWh` },
-          { k: 'Mức dự phòng', v: `${HEADROOM} kWh` },
-          { k: 'Hạn mức ngày', v: `${budget.toFixed(1)} kWh` },
-        ];
-      } else if (hit.a === 'PHANTOM_ANSWER') {
-        const W = 35;
-        const kwh = (W * 24 * 30) / 1000;
-        const vnd = kwh * CURRENT_TIER.price;
-        text = `Từ 02:00 đến 05:00 sáng, công suất nền ổn định ở mức ${W} W sau khi loại trừ chu kỳ tủ lạnh. Mức này tiêu tốn khoảng ${kwh.toFixed(0)} kWh/tháng từ cụm TV và modem wifi, tính theo bậc cận biên (${CURRENT_TIER.name.toLowerCase()}), tương đương khoảng ${Math.round(vnd).toLocaleString('vi-VN')} đ.`;
-        facts = [
-          { k: 'Công suất chờ', v: `${W} W` },
-          { k: 'Lãng phí hàng tháng', v: `${kwh.toFixed(0)} kWh` },
-          { k: `Tính theo ${CURRENT_TIER.name}`, v: `${Math.round(vnd).toLocaleString('vi-VN')} đ` },
-        ];
-      }
-
-      aiMsg = {
-        id: `ai-${Date.now() + 1}`,
-        who: 'ai',
-        text,
-        facts,
-        cta: hit.cta,
-        ctaDesc: hit.ctaDesc,
-      };
-    } else {
-      aiMsg = {
-        id: `ai-${Date.now() + 1}`,
-        who: 'ai',
-        text: 'Tôi đã đối chiếu số liệu với công tơ, thời tiết và biểu phí EVN hiện hành. Không có yếu tố đơn lẻ nào trong 30 ngày qua giải thích cho sự chênh lệch này, mức biến động vẫn nằm trong giới hạn bình thường.',
-        facts: [
-          { k: 'Số ngày đồng bộ', v: '30' },
-          { k: 'Độ tin cậy', v: 'Trung bình' },
-        ],
-      };
-    }
-
-    setChatMessages((prev) => [...prev, userMsg, aiMsg]);
-  }, [activeThreadId, sendChatMessageToThread]);
+  const endExperiment = useCallback<EnergyStoreValue['endExperiment']>(
+    (emotion, result) => {
+      setActiveExperiment((current) => {
+        if (current) {
+          const item: ExperimentLogItem = {
+            id: uid('exp'),
+            title: current.title,
+            devices: current.actions.map((a) => a.name),
+            dateRange: result.dateRange,
+            days: result.days,
+            savedKwh: result.savedKwh,
+            savedVnd: result.savedVnd,
+            emotion,
+          };
+          setExperimentLogs((prev) => [item, ...prev]);
+        }
+        return null;
+      });
+    },
+    []
+  );
 
   const value = useMemo<EnergyStoreValue>(
     () => ({
-      range,
-      tariff,
-      setRange,
-      setTariff,
       unit,
       toggleUnit,
       usageTab,
       setUsageTab,
-      breakdownView,
-      setBreakdownView,
       selectedDeviceIndex,
       setSelectedDeviceIndex,
       activeDeviceDetail,
       setActiveDeviceDetail,
-      customerType,
-      setCustomerType,
-      chartBreakdown,
-      setChartBreakdown,
+      alertPrefs,
+      setAlertPref,
+      resetLocalData,
       threads,
-      activeThreadId,
-      setActiveThreadId,
       createThread,
+      askInThread,
       openInsightThread,
-      sendChatMessageToThread,
-      chatMessages,
-      sendChatMessage,
-      experimentState,
-      setExperimentState,
-      experimentTemp,
-      setExperimentTemp,
+      experimentDraft,
+      setExperimentDraft,
       activeExperiment,
-      setActiveExperiment,
       experimentLogs,
       startExperiment,
       endExperiment,
     }),
     [
-      range,
-      tariff,
       unit,
+      toggleUnit,
       usageTab,
-      breakdownView,
       selectedDeviceIndex,
       activeDeviceDetail,
-      customerType,
-      chartBreakdown,
+      alertPrefs,
+      setAlertPref,
+      resetLocalData,
       threads,
-      activeThreadId,
       createThread,
+      askInThread,
       openInsightThread,
-      sendChatMessageToThread,
-      chatMessages,
-      sendChatMessage,
-      experimentState,
-      experimentTemp,
+      experimentDraft,
       activeExperiment,
       experimentLogs,
       startExperiment,
@@ -406,4 +344,3 @@ export function useEnergyStore(): EnergyStoreValue {
   }
   return value;
 }
-

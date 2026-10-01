@@ -1,21 +1,22 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+
+import { useSafeBack } from '@/hooks/use-safe-back';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
 import { DEMO_MONTH } from '@/features/energy/period';
 import { BillingTariffView } from '@/features/energy/components/billing-tariff-view';
 
 export function BillingScreen() {
-  const router = useRouter();
+  const goBack = useSafeBack('/account');
 
   const handleBack = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
-    router.back();
+    goBack();
   };
 
   return (

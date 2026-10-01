@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,48 +10,51 @@ import {
 } from 'react-native';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import type { CopilotSuggestion } from '@/features/energy/api';
+import { dotColorOf } from '@/features/energy/chat-format';
 import { ChatMessageBubble } from '@/features/energy/components/chat-message-bubble';
-import { MOCK_SUGGESTIONS } from '@/features/energy/mock';
-import type { ChatThread } from '@/features/energy/types';
+import { ChatSuggestionChips } from '@/features/energy/components/chat-suggestion-chips';
+import type { ChatAction, ChatThread } from '@/features/energy/types';
 
 interface ChatThreadViewProps {
   thread: ChatThread;
   onBack: () => void;
   onSendMessage: (text: string) => void;
-  onCtaPress: (cta: string) => void;
+  onPickSuggestion: (suggestion: CopilotSuggestion) => void;
+  onAction: (action: ChatAction) => void;
+  onRetry: (text: string) => void;
 }
 
 export function ChatThreadView({
   thread,
   onBack,
   onSendMessage,
-  onCtaPress,
+  onPickSuggestion,
+  onAction,
+  onRetry,
 }: ChatThreadViewProps) {
   const [inputText, setInputText] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
+  const busy = thread.messages.some((m) => m.state === 'pending');
 
   const handleSend = () => {
     const trimmed = inputText.trim();
-    if (!trimmed) return;
+    if (!trimmed || busy) return;
     onSendMessage(trimmed);
     setInputText('');
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
   };
 
-  const handleSuggestionPress = (query: string) => {
-    onSendMessage(query);
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  const retryFor = (index: number) => {
+    for (let i = index - 1; i >= 0; i--) {
+      if (thread.messages[i].who === 'me') return () => onRetry(thread.messages[i].text);
+    }
+    return undefined;
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
       style={styles.root}>
-      {/* Top Navigation & Thread Info Header */}
       <View style={styles.topHeader}>
         <View style={styles.navRow}>
           <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
@@ -60,58 +62,49 @@ export function ChatThreadView({
             <Text style={styles.backLabel}>Danh sách</Text>
           </Pressable>
 
-          {/* Category & Period Pill */}
           <View style={styles.badgePill}>
-            <View
-              style={[styles.badgeDot, { backgroundColor: thread.dotColor }]}
-            />
+            <View style={[styles.badgeDot, { backgroundColor: dotColorOf(thread.category) }]} />
             <Text style={styles.badgeText}>
-              {thread.category} · {thread.period}
+              {[thread.category, thread.period].filter(Boolean).join(' · ')}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.threadTitle}>{thread.title}</Text>
+        <Text style={styles.threadTitle} numberOfLines={2}>
+          {thread.title}
+        </Text>
       </View>
 
-      {/* Message List */}
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
-        {thread.messages.map((msg) => (
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+        {thread.messages.map((msg, index) => (
           <ChatMessageBubble
             key={msg.id}
             message={msg}
-            onCtaPress={onCtaPress}
+            onAction={onAction}
+            onRetry={msg.state === 'failed' ? retryFor(index) : undefined}
           />
         ))}
 
-        {/* Quick Suggestion Chips if short thread */}
-        {thread.messages.length <= 2 && (
+        {!busy && (
           <View style={styles.suggestionsWrap}>
-            <Text style={styles.suggestionsHeader}>CÂU HỎI GỢI Ý</Text>
-            <View style={styles.chipsRow}>
-              {MOCK_SUGGESTIONS.map((sg, idx) => (
-                <Pressable
-                  key={idx}
-                  onPress={() => handleSuggestionPress(sg.q)}
-                  style={styles.suggestionChip}>
-                  <Text style={styles.suggestionLabel}>{sg.q}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <ChatSuggestionChips
+              onPick={onPickSuggestion}
+              asked={thread.messages.filter((m) => m.who === 'me').map((m) => m.text)}
+            />
           </View>
         )}
       </ScrollView>
 
-      {/* Bottom Input Field */}
-      <View style={styles.inputContainer}>
+            <View style={styles.inputContainer}>
         <TextInput
           value={inputText}
           onChangeText={setInputText}
-          placeholder="Hỏi thêm hoặc tra cứu một chỉ số..."
+          placeholder="Hỏi về điện nhà bạn..."
           placeholderTextColor="#7C9588"
           onSubmitEditing={handleSend}
           returnKeyType="send"
@@ -196,28 +189,6 @@ const styles = StyleSheet.create({
   suggestionsWrap: {
     marginTop: 8,
     gap: 8,
-  },
-  suggestionsHeader: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 11,
-    letterSpacing: 0.6,
-    color: WattPrintTokens.colors.secondary, // #4A6B60
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  suggestionChip: {
-    backgroundColor: WattPrintTokens.colors.neutralGround, // #F2F4ED
-    borderRadius: WattPrintTokens.radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  suggestionLabel: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 13,
-    color: WattPrintTokens.colors.primary, // #164437
   },
   inputContainer: {
     flexDirection: 'row',

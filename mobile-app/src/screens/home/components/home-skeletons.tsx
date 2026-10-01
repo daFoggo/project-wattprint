@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hero: { paddingTop: 10, paddingBottom: 4, gap: 8 },
+  hero: { paddingTop: 10, paddingBottom: 22, gap: 8 },
   sentence: { gap: 6, maxWidth: 320 },
   metricRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
   bubbles: { height: 270, width: '100%', position: 'relative' },

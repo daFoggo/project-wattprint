@@ -9,16 +9,19 @@ import {
 } from 'react-native';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import type { CopilotSuggestion } from '@/features/energy/api';
+import { dotColorOf, groupOf, metaOf, type ThreadGroup } from '@/features/energy/chat-format';
+import { ChatSuggestionChips } from '@/features/energy/components/chat-suggestion-chips';
 import type { ChatThread } from '@/features/energy/types';
 
 interface ChatThreadListProps {
   threads: ChatThread[];
-  activeThreadId: string | null;
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
+  onPickSuggestion: (suggestion: CopilotSuggestion) => void;
 }
 
-const SECTION_ORDER: { key: ChatThread['group']; label: string }[] = [
+const SECTION_ORDER: { key: ThreadGroup; label: string }[] = [
   { key: 'today', label: 'HÔM NAY' },
   { key: 'this_week', label: 'TUẦN NÀY' },
   { key: 'earlier', label: 'TRƯỚC ĐÓ' },
@@ -26,38 +29,29 @@ const SECTION_ORDER: { key: ChatThread['group']; label: string }[] = [
 
 export function ChatThreadList({
   threads,
-  activeThreadId,
   onSelectThread,
   onNewThread,
+  onPickSuggestion,
 }: ChatThreadListProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredThreads = useMemo(() => {
+  const grouped = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return threads;
-    return threads.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.category.toLowerCase().includes(q) ||
-        t.period.toLowerCase().includes(q)
-    );
+    const map: Record<ThreadGroup, ChatThread[]> = { today: [], this_week: [], earlier: [] };
+    [...threads]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .filter(
+        (t) =>
+          !q ||
+          t.title.toLowerCase().includes(q) ||
+          t.category.toLowerCase().includes(q) ||
+          t.period.toLowerCase().includes(q)
+      )
+      .forEach((t) => map[groupOf(t.updatedAt)].push(t));
+    return map;
   }, [threads, searchQuery]);
 
-  const grouped = useMemo(() => {
-    const map: Record<ChatThread['group'], ChatThread[]> = {
-      today: [],
-      this_week: [],
-      earlier: [],
-    };
-    filteredThreads.forEach((t) => {
-      if (map[t.group]) {
-        map[t.group].push(t);
-      } else {
-        map.earlier.push(t);
-      }
-    });
-    return map;
-  }, [filteredThreads]);
+  const isEmpty = threads.length === 0;
 
   return (
     <View style={styles.root}>
@@ -65,77 +59,66 @@ export function ChatThreadList({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        {/* Header: Copilot + Threads Count */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Trợ lý AI</Text>
-          <Text style={styles.headerCount}>{threads.length} CUỘC HỘI THOẠI</Text>
+          {!isEmpty && <Text style={styles.headerCount}>{threads.length} CUỘC HỘI THOẠI</Text>}
         </View>
 
-        {/* Search Pill Bar */}
-        <View style={styles.searchBar}>
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Tìm kiếm cuộc hội thoại"
-            placeholderTextColor="#7C9588"
-            style={styles.searchInput}
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-          />
-        </View>
+        {isEmpty ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Chưa có cuộc hội thoại nào</Text>
+            <Text style={styles.emptyBody}>
+              Hỏi về tiền điện, bậc giá hay thiết bị trong nhà. Chạm một câu gợi ý để bắt đầu.
+            </Text>
+            <ChatSuggestionChips onPick={onPickSuggestion} />
+          </View>
+        ) : (
+          <View style={styles.searchBar}>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Tìm kiếm cuộc hội thoại"
+              placeholderTextColor="#7C9588"
+              style={styles.searchInput}
+              clearButtonMode="while-editing"
+              autoCorrect={false}
+            />
+          </View>
+        )}
 
-        {/* Timeline Sections */}
         {SECTION_ORDER.map((section) => {
           const sectionThreads = grouped[section.key];
-          if (!sectionThreads || sectionThreads.length === 0) return null;
+          if (sectionThreads.length === 0) return null;
 
           return (
             <View key={section.key} style={styles.sectionWrap}>
               <Text style={styles.sectionHeader}>{section.label}</Text>
               <View style={styles.sectionItems}>
-                {sectionThreads.map((thread) => {
-                  const isSelected =
-                    activeThreadId === thread.id ||
-                    (!activeThreadId && thread.id === 'thread-1');
-
-                  return (
-                    <Pressable
-                      key={thread.id}
-                      onPress={() => onSelectThread(thread.id)}
-                      style={[
-                        styles.threadItem,
-                        isSelected && styles.threadItemSelected,
-                      ]}>
-                      {/* Left Dot Chip */}
-                      <View
-                        style={[
-                          styles.dotChip,
-                          { backgroundColor: thread.dotColor },
-                        ]}
-                      />
-
-                      {/* Main Title & Meta */}
-                      <View style={styles.threadTextWrap}>
-                        <Text
-                          style={styles.threadTitle}
-                          numberOfLines={2}
-                          ellipsizeMode="tail">
-                          {thread.title}
-                        </Text>
-                        <Text style={styles.threadMeta}>
-                          {thread.category} · {thread.period} · {thread.timeAgo}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                {sectionThreads.map((thread) => (
+                  <Pressable
+                    key={thread.id}
+                    onPress={() => onSelectThread(thread.id)}
+                    style={({ pressed }) => [
+                      styles.threadItem,
+                      pressed && styles.threadItemSelected,
+                    ]}>
+                    <View
+                      style={[styles.dotChip, { backgroundColor: dotColorOf(thread.category) }]}
+                    />
+                    <View style={styles.threadTextWrap}>
+                      <Text style={styles.threadTitle} numberOfLines={2} ellipsizeMode="tail">
+                        {thread.title}
+                      </Text>
+                      <Text style={styles.threadMeta}>{metaOf(thread)}</Text>
+                    </View>
+                  </Pressable>
+                ))}
               </View>
             </View>
           );
         })}
       </ScrollView>
 
-      {/* Floating Action Button: + New thread */}
       <Pressable onPress={onNewThread} style={styles.fab}>
         <Text style={styles.fabIcon}>+</Text>
         <Text style={styles.fabLabel}>Hội thoại mới</Text>
@@ -186,6 +169,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: WattPrintTokens.colors.primary,
     padding: 0,
+  },
+  empty: { gap: 14, paddingTop: 8 },
+  emptyTitle: {
+    fontFamily: Fonts.sansSemiBold,
+    fontSize: 18,
+    color: WattPrintTokens.colors.primary,
+  },
+  emptyBody: {
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: WattPrintTokens.colors.secondary,
   },
   sectionWrap: {
     marginBottom: 16,
