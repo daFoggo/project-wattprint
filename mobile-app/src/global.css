@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&family=Geist+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+@import "nativewind/theme";
+
+/* ─── Theme: design tokens (light / dark) ─────────────────────────
+   1. :root              — light defaults (all platforms)
+   2. @media dark :root  — dark defaults; nativewind maps this to
+                           Appearance.getColorScheme() on native.
+   3. :root.dark / :root.light — higher specificity for web class toggle. */
+@layer theme {
+  :root {
+    --primary: 22 68 55;
+    --primary-foreground: 255 255 255;
+    --card: 242 244 237;
+    --secondary: 74 107 96;
+    --secondary-foreground: 255 255 255;
+    --background: 255 255 255;
+    --popover: 255 255 255;
+    --popover-foreground: 22 68 55;
+    --muted: 239 244 230;
+    --muted-foreground: 74 107 96;
+    --destructive: 231 0 11;
+    --foreground: 22 68 55;
+    --border: 231 235 225;
+    --input: 239 244 230;
+    --ring: 181 233 48;
+    --accent: 181 233 48;
+    --accent-foreground: 22 68 55;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: 181 233 48;
+      --primary-foreground: 22 68 55;
+      --card: 22 68 55;
+      --secondary: 187 210 201;
+      --secondary-foreground: 22 68 55;
+      --background: 11 35 28;
+      --popover: 22 68 55;
+      --popover-foreground: 255 255 255;
+      --muted: 22 68 55;
+      --muted-foreground: 187 210 201;
+      --destructive: 255 100 103;
+      --foreground: 255 255 255;
+      --border: 44 81 69;
+      --input: 44 81 69;
+      --accent: 181 233 48;
+      --accent-foreground: 22 68 55;
+      --ring: 181 233 48;
+    }
+  }
+
+  :root.dark {
+    --primary: 181 233 48;
+    --primary-foreground: 22 68 55;
+    --card: 22 68 55;
+    --secondary: 187 210 201;
+    --secondary-foreground: 22 68 55;
+    --background: 11 35 28;
+    --popover: 22 68 55;
+    --popover-foreground: 255 255 255;
+    --muted: 22 68 55;
+    --muted-foreground: 187 210 201;
+    --destructive: 255 100 103;
+    --foreground: 255 255 255;
+    --border: 44 81 69;
+    --input: 44 81 69;
+    --accent: 181 233 48;
+    --accent-foreground: 22 68 55;
+    --ring: 181 233 48;
+  }
+
+  :root.light {
+    --primary: 22 68 55;
+    --primary-foreground: 255 255 255;
+    --card: 242 244 237;
+    --secondary: 74 107 96;
+    --secondary-foreground: 255 255 255;
+    --background: 255 255 255;
+    --popover: 255 255 255;
+    --popover-foreground: 22 68 55;
+    --muted: 239 244 230;
+    --muted-foreground: 74 107 96;
+    --destructive: 231 0 11;
+    --foreground: 22 68 55;
+    --border: 231 235 225;
+    --input: 239 244 230;
+    --ring: 181 233 48;
+    --accent: 181 233 48;
+    --accent-foreground: 22 68 55;
+  }
+}
+
+@theme inline {
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-card: rgb(var(--card));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+  --color-background: rgb(var(--background));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-destructive: rgb(var(--destructive));
+  --color-foreground: rgb(var(--foreground));
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--ring));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+}
+
+/* ─── Platform-specific font families ─────────────────────────── */
+@media android {
+  :root {
+    --font-mono: monospace;
+    --font-rounded: normal;
+    --font-serif: serif;
+    --font-sans: normal;
+  }
+}
+
+@media ios {
+  :root {
+    --font-mono: ui-monospace;
+    --font-serif: ui-serif;
+    --font-sans: system-ui;
+    --font-rounded: ui-rounded;
+  }
+}
+
+/* ─── Apple semantic colors ───────────────────────────────────── */
+:root {
+  --sf-blue: light-dark(rgb(0 122 255), rgb(10 132 255));
+  --sf-green: light-dark(rgb(52 199 89), rgb(48 209 89));
+  --sf-red: light-dark(rgb(255 59 48), rgb(255 69 58));
+  --sf-gray: light-dark(rgb(142 142 147), rgb(142 142 147));
+  --sf-text: light-dark(rgb(0 0 0), rgb(255 255 255));
+  --sf-text-2: light-dark(rgb(60 60 67 / 0.6), rgb(235 235 245 / 0.6));
+  --sf-bg: light-dark(rgb(255 255 255), rgb(0 0 0));
+  --sf-bg-2: light-dark(rgb(242 242 247), rgb(28 28 30));
+}
+
+@media ios {
+  :root {
+    --sf-blue: platformColor(systemBlue);
+    --sf-green: platformColor(systemGreen);
+    --sf-red: platformColor(systemRed);
+    --sf-gray: platformColor(systemGray);
+    --sf-text: platformColor(label);
+    --sf-text-2: platformColor(secondaryLabel);
+    --sf-bg: platformColor(systemBackground);
+    --sf-bg-2: platformColor(secondarySystemBackground);
+  }
+}
+
+@theme inline {
+  --color-sf-blue: var(--sf-blue);
+  --color-sf-green: var(--sf-green);
+  --color-sf-red: var(--sf-red);
+  --color-sf-gray: var(--sf-gray);
+  --color-sf-text: var(--sf-text);
+  --color-sf-text-2: var(--sf-text-2);
+  --color-sf-bg: var(--sf-bg);
+  --color-sf-bg-2: var(--sf-bg-2);
+}
