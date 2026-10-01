@@ -2,16 +2,16 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import type { AlertItem } from '@/features/energy/types';
+import type { AlertOut } from '@/features/energy/api';
 
-const toneDot: Record<AlertItem['tone'], string> = {
+const toneDot: Record<AlertOut['tone'], string> = {
   warning: '#E5A93C',
   info: WattPrintTokens.colors.tertiary, // #B5E930
   good: '#7CC24C',
 };
 
 interface EnergyAlertsBlockProps {
-  alerts: AlertItem[];
+  alerts: AlertOut[];
 }
 
 export function EnergyAlertsBlock({ alerts }: EnergyAlertsBlockProps) {
@@ -19,13 +19,13 @@ export function EnergyAlertsBlock({ alerts }: EnergyAlertsBlockProps) {
     <View style={styles.block}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>CẢNH BÁO</Text>
-        <Text style={styles.counter}>{alerts.length} mới</Text>
+        <Text style={styles.counter}>{alerts.length} thông báo</Text>
       </View>
 
       <View style={styles.list}>
         {alerts.map((item) => (
-          <View key={item.id} style={styles.row}>
-            <Text style={styles.time}>{item.time}</Text>
+          <View key={item.code + item.at} style={styles.row}>
+            <Text style={styles.time}>{item.at.slice(11, 16)}</Text>
             <View style={styles.dotWrap}>
               <View style={[styles.dot, { backgroundColor: toneDot[item.tone] }]} />
             </View>

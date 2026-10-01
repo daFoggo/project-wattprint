@@ -2,68 +2,76 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DataRamp, Fonts, WattPrintTokens } from '@/constants/theme';
-import type { TimelineEvent } from '@/features/energy/types';
+import type { ApplianceRuns } from '@/features/energy/api';
 
 interface EnergyTimelineProps {
-  events: TimelineEvent[];
-  onSeeAll?: () => void;
+  appliances: ApplianceRuns[];
 }
 
-export function EnergyTimeline({ events, onSeeAll }: EnergyTimelineProps) {
-  const [expandedId, setExpandedId] = useState<string | null>('t3'); // default cooktop expanded like prototype
+const MAX_RUNS = 5; // chỉ hiện các lần chạy gần nhất của mỗi thiết bị
 
-  const toggleExpand = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+const hm = (iso: string) => iso.slice(11, 16);
+
+function duration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h} giờ ${String(m).padStart(2, '0')} phút` : `${m} phút`;
+}
+
+const num = (n: number, digits: number) => n.toFixed(digits).replace('.', ',');
+
+export function EnergyTimeline({ appliances }: EnergyTimelineProps) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(appliances[0]?.key ?? null); // mặc định mở mục đầu tiên
+
+  const toggleExpand = (key: string) => {
+    setExpandedKey((prev) => (prev === key ? null : key));
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Hôm nay</Text>
-        <Pressable onPress={onSeeAll} hitSlop={8}>
-          <Text style={styles.seeAll}>XEM TẤT CẢ</Text>
-        </Pressable>
       </View>
 
       <View style={styles.timelineWrapper}>
         {/* Continuous 2px rail line */}
         <View style={styles.rail} />
 
-        {events.map((event) => {
-          const isExpanded = expandedId === event.id;
-          const hasDetail = event.detail.length > 0;
-          const dotColor = DataRamp[event.rampIndex % DataRamp.length].bg;
+        {appliances.map((a, index) => {
+          const isExpanded = expandedKey === a.key;
+          const dotColor = DataRamp[index % DataRamp.length].bg;
 
           return (
-            <View key={event.id} style={styles.eventRow}>
+            <View key={a.key} style={styles.eventRow}>
               {/* Dot on the rail */}
               <View style={[styles.dot, { backgroundColor: dotColor }]} />
 
-              <Text style={styles.timestamp}>{event.time}</Text>
+              <Text style={styles.timestamp}>{hm(a.first_start)}</Text>
 
               {/* Tinted event card */}
               <View style={styles.card}>
-                <Text style={styles.eventText}>{event.text}</Text>
+                <Text style={styles.eventText}>
+                  {a.name} chạy {a.run_count} lần, tổng {duration(a.minutes)}, {num(a.energy_kwh, 2)} kWh.
+                </Text>
 
-                {isExpanded && hasDetail && (
+                {isExpanded && (
                   <View style={styles.detailsList}>
-                    {event.detail.map((line, idx) => (
-                      <Text key={idx} style={styles.detailLine}>
-                        {line}
+                    {a.runs.slice(-MAX_RUNS).map((r) => (
+                      <Text key={r.start} style={styles.detailLine}>
+                        {hm(r.start)}–{hm(r.end)} · {duration(r.minutes)} · {num(r.energy_kwh, 2)} kWh · đỉnh{' '}
+                        {r.peak_power_w} W
                       </Text>
                     ))}
                   </View>
                 )}
 
-                {hasDetail && (
-                  <Pressable
-                    onPress={() => toggleExpand(event.id)}
-                    style={styles.toggleBtn}>
-                    <Text style={styles.toggleLabel}>
-                      {isExpanded ? 'Ẩn chi tiết' : `Xem ${event.detail.length} lần chạy`}
-                    </Text>
-                  </Pressable>
-                )}
+                <Pressable onPress={() => toggleExpand(a.key)} style={styles.toggleBtn}>
+                  <Text style={styles.toggleLabel}>
+                    {isExpanded
+                      ? 'Ẩn chi tiết'
+                      : `Xem ${Math.min(a.runs.length, MAX_RUNS)} lần chạy gần nhất`}
+                  </Text>
+                </Pressable>
               </View>
             </View>
           );

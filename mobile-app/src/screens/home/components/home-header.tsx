@@ -3,17 +3,31 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import { DEMO_NOW } from '@/features/energy/period';
+
+const WEEKDAYS = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
+
+function greeting(hour: number): string {
+  if (hour < 11) return 'Chào buổi sáng';
+  if (hour < 14) return 'Chào buổi trưa';
+  if (hour < 18) return 'Chào buổi chiều';
+  return 'Chào buổi tối';
+}
 
 interface HomeHeaderProps {
   onPressAi?: () => void;
 }
 
 export function HomeHeader({ onPressAi }: HomeHeaderProps) {
+  // "bây giờ" của demo là mốc cố định trong dữ liệu (wall-clock lưu dạng UTC), không phải giờ máy
+  const now = new Date(DEMO_NOW);
+  const date = `${WEEKDAYS[now.getUTCDay()]}, ${now.getUTCDate()} THÁNG ${now.getUTCMonth() + 1}, ${now.getUTCFullYear()}`;
+
   return (
     <View style={styles.header}>
       <View style={styles.greetingContainer}>
-        <Text style={styles.date}>CHỦ NHẬT, 14 THÁNG 9</Text>
-        <Text style={styles.greeting}>Chào buổi tối, Minh</Text>
+        <Text style={styles.date}>{date}</Text>
+        <Text style={styles.greeting}>{greeting(now.getUTCHours())}</Text>
       </View>
 
       <Pressable

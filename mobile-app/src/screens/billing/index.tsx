@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
+import { DEMO_MONTH } from '@/features/energy/period';
 import { BillingTariffView } from '@/features/energy/components/billing-tariff-view';
 
 export function BillingScreen() {
@@ -39,7 +40,7 @@ export function BillingScreen() {
         {/* Identity Block on Ground */}
         <View style={styles.identityBlock}>
           <Text style={styles.title}>Hóa đơn & Biểu phí</Text>
-          <Text style={styles.subtitle}>Kỳ tháng 09/2026 · EVN Hà Nội</Text>
+          <Text style={styles.subtitle}>Kỳ tháng {DEMO_MONTH.slice(5)}/{DEMO_MONTH.slice(0, 4)} · EVN Hà Nội</Text>
         </View>
 
         <BillingTariffView />

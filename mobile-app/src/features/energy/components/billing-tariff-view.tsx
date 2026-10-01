@@ -1,66 +1,103 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { Fonts, WattPrintTokens } from '@/constants/theme';
-import {
-  BILL_DAYS,
-  CROSS_DAY,
-  CURRENT_TIER,
-  DAYS_LEFT,
-  HEADROOM,
-  MONTH_COST,
-  NEXT_TIER,
-  PACE,
-  PROJECTED_MONTH_COST,
-  PROJECTED_MONTH_KWH,
-  STEP_PCT,
-  TIER_USED,
-  TIERS,
-  TOU_TIERS,
-} from '@/features/energy/mock';
-import type { CustomerType } from '@/features/energy/types';
+import { useBilling, type BillingOut, type Customer, type TouPeriod } from '@/features/energy/api';
 
-interface BillingTariffViewProps {
-  customerType?: CustomerType;
-  onCustomerChange?: (type: CustomerType) => void;
-  hideChart?: boolean;
+type Mode = 'tier' | 'tou';
+
+/** Hộ sinh hoạt tính 6 bậc; đơn vị kinh doanh tính theo giờ (TOU). Nút chuyển để xem thử cả hai. */
+const CUSTOMER: Record<Mode, Customer> = { tier: 'household', tou: 'business' };
+
+const TIER_COLORS = ['#DEEEBD', '#B5E930', '#389E1E', '#164437', '#E5A93C', '#DC2626'];
+const TOU_COLORS: Record<TouPeriod, string> = {
+  offpeak: '#7CC24C',
+  normal: '#E5A93C',
+  peak: '#DC2626',
+};
+
+const vnd = (n: number) => Math.round(n).toLocaleString('vi-VN');
+
+function bandRange(from: number, to: number | null, price: number): string {
+  const head = to === null ? `trên ${from} kWh` : `${from === 0 ? 0 : from + 1} đến ${to} kWh`;
+  return `${head}, ${vnd(price)} đ`;
 }
 
-export function BillingTariffView({
-  hideChart = false,
-}: BillingTariffViewProps) {
-  const [billingMode, setBillingMode] = useState<'tier' | 'tou'>('tier');
+function tierAdvice(b: NonNullable<BillingOut['tier']>, pace: number, month: number): string {
+  const s = b.status;
+  if (s.headroom_kwh === null || s.next_band_name === null) {
+    return `Bạn đang ở ${s.band_name}, bậc cao nhất của biểu giá. Mỗi kWh thêm đều tính theo giá bậc này.`;
+  }
+  const price = b.bands[s.next_band_index ?? 0].price_vnd;
+  const step = s.step_pct === null ? '' : ` đắt hơn ${s.step_pct}%`;
+  const cross =
+    s.cross_day === null
+      ? `Với mức ${pace.toFixed(1)} kWh/ngày, bạn sẽ không chạm bậc này trong tháng.`
+      : `Với mức ${pace.toFixed(1)} kWh/ngày, bạn sẽ chạm ${s.next_band_name} vào ngày ${s.cross_day}/${month}.`;
+  return `Bạn đang ở ${s.band_name} với mức dự phòng ${Math.round(s.headroom_kwh)} kWh. ${s.next_band_name} (${vnd(price)} đ/kWh)${step}. ${cross}`;
+}
 
-  const maxDayKwh = Math.max(...BILL_DAYS.map((d) => d.kwh)) || 1;
-  const chartHeight = 105;
+export function BillingTariffView({ hideChart = false }: { hideChart?: boolean }) {
+  const [billingMode, setBillingMode] = useState<Mode>('tier');
+  const { data, isError, refetch } = useBilling(CUSTOMER[billingMode]);
 
-  const totalCostDisplay = `${Math.round(MONTH_COST).toLocaleString('vi-VN')}`;
-  const projectedCostDisplay = `${PROJECTED_MONTH_COST.toLocaleString('vi-VN')}`;
-
-  const warnTag = 'DỰ BÁO BẬC 5 EVN';
-  const warnText = `Bạn đang ở ${CURRENT_TIER.name} với mức dự phòng ${Math.round(
-    HEADROOM
-  )} kWh. ${NEXT_TIER.name} (3.350 đ/kWh) đắt hơn ${STEP_PCT}%, và với mức tiêu thụ hiện tại ${PACE.toFixed(
-    1
-  )} kWh/ngày, bạn sẽ chạm Bậc 5 vào ngày ${CROSS_DAY}/9 (ngày mai). Dự báo cả tháng sẽ chạm ${PROJECTED_MONTH_KWH} kWh (~${projectedCostDisplay} đ).`;
-
-  const rows = TIERS.map((t, i) => ({
-    name: t.name,
-    sub: t.sub,
-    used: `${Math.round(TIER_USED[i])}`,
-    cost: `${Math.round(TIER_USED[i] * t.price).toLocaleString('vi-VN')}`,
-    color: t.color,
-    symbol: t.symbol ?? '■',
-    pattern: t.pattern ?? 'solid',
-  }));
-
-  const handleModeChange = (mode: 'tier' | 'tou') => {
+  const handleModeChange = (mode: Mode) => {
     try {
       Haptics.selectionAsync();
     } catch {}
     setBillingMode(mode);
   };
+
+  const modeSwitcher = (
+    <View style={styles.pillTrack}>
+      {(['tier', 'tou'] as const).map((mode) => (
+        <Pressable
+          key={mode}
+          onPress={() => handleModeChange(mode)}
+          accessibilityRole="button"
+          accessibilityLabel={mode === 'tier' ? 'Xem theo 6 bậc thang EVN' : 'Xem theo giờ dùng TOU'}
+          style={[styles.pillItem, billingMode === mode && styles.pillItemActive]}>
+          <Text style={[styles.pillText, billingMode === mode && styles.pillTextActive]}>
+            {mode === 'tier' ? '6 BẬC' : 'TOU'}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (!data || data.scheme !== billingMode) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.card, { alignItems: 'center' }]}>
+          <View style={[styles.cardHeader, { alignSelf: 'stretch', justifyContent: 'flex-end' }]}>
+            {modeSwitcher}
+          </View>
+          {isError ? (
+            <>
+              <Text style={styles.sentenceSmall}>Không tải được dữ liệu hóa đơn.</Text>
+              <Pressable onPress={() => refetch()} accessibilityRole="button">
+                <Text style={styles.eyebrow}>THỬ LẠI</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ActivityIndicator color={WattPrintTokens.colors.primary} />
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  const { tier, tou } = data;
+  const days = Math.round(data.days_elapsed);
+  const month = Number(data.month.slice(5));
+  const totalCostDisplay = vnd(data.bill_to_date.total_vnd);
+  const projectedCostDisplay = vnd(data.forecast.bill.total_vnd);
+  const peak = tou?.periods.find((p) => p.key === 'peak');
+  const offpeak = tou?.periods.find((p) => p.key === 'offpeak');
+
+  const maxDayKwh = Math.max(...(tier?.daily.map((d) => d.kwh) ?? [1]), 1);
+  const chartHeight = 105;
 
   return (
     <View style={styles.container}>
@@ -68,43 +105,20 @@ export function BillingTariffView({
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.eyebrow}>
-            {billingMode === 'tier' ? 'HÓA ĐƠN & BẬC THANG EVN' : 'BIỂU PHÍ THEO KHUNG GIỜ (TOU)'}
+            {tier ? 'HÓA ĐƠN & BẬC THANG EVN' : 'BIỂU PHÍ THEO KHUNG GIỜ (TOU)'}
           </Text>
-
-          {/* Mode Switcher: BẬC 5 ⇄ TOU */}
-          <View style={styles.pillTrack}>
-            <Pressable
-              onPress={() => handleModeChange('tier')}
-              accessibilityRole="button"
-              accessibilityLabel="Xem theo 6 bậc thang EVN"
-              style={[styles.pillItem, billingMode === 'tier' && styles.pillItemActive]}>
-              <Text style={[styles.pillText, billingMode === 'tier' && styles.pillTextActive]}>
-                BẬC 5
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleModeChange('tou')}
-              accessibilityRole="button"
-              accessibilityLabel="Xem theo giờ dùng TOU"
-              style={[styles.pillItem, billingMode === 'tou' && styles.pillItemActive]}>
-              <Text style={[styles.pillText, billingMode === 'tou' && styles.pillTextActive]}>
-                TOU
-              </Text>
-            </Pressable>
-          </View>
+          {modeSwitcher}
         </View>
 
-        {/* Headline summary */}
         <Text style={styles.sentence}>
-          {billingMode === 'tier'
-            ? `Đã dùng 284 kWh (Bậc 4/6), còn ${DAYS_LEFT} ngày trong chu kỳ.`
-            : 'Cơ cấu 3 khung giờ: Cao điểm chiếm 38% phụ tải.'}
+          {tier
+            ? `Đã dùng ${Math.round(data.kwh_to_date)} kWh (${tier.status.band_name}/${tier.bands.length}), còn ${data.days_in_month - days} ngày trong chu kỳ.`
+            : `Cao điểm chiếm ${Math.round(peak?.share_pct ?? 0)}% điện tiêu thụ trong ${days} ngày qua.`}
         </Text>
 
-        {/* Cost comparison row */}
         <View style={styles.figuresRow}>
           <View style={styles.figureCol}>
-            <Text style={styles.figureLabel}>TẠM TÍNH 14 NGÀY</Text>
+            <Text style={styles.figureLabel}>TẠM TÍNH {days} NGÀY</Text>
             <View style={styles.totalRow}>
               <Text style={styles.totalValue}>{totalCostDisplay}</Text>
               <Text style={styles.totalUnit}>VND</Text>
@@ -114,7 +128,9 @@ export function BillingTariffView({
           <View style={styles.figureDivider} />
 
           <View style={styles.figureCol}>
-            <Text style={styles.figureLabel}>DỰ BÁO CẢ THÁNG (608 kWh)</Text>
+            <Text style={styles.figureLabel}>
+              DỰ BÁO CẢ THÁNG ({Math.round(data.forecast.kwh)} kWh)
+            </Text>
             <View style={styles.totalRow}>
               <Text style={styles.forecastValue}>{projectedCostDisplay}</Text>
               <Text style={styles.forecastUnit}>VND</Text>
@@ -123,28 +139,27 @@ export function BillingTariffView({
         </View>
 
         {/* TIER MODE: Stacked Daily Columns */}
-        {billingMode === 'tier' && !hideChart && (
+        {tier && !hideChart && (
           <View style={styles.chartWrapper}>
             <View style={[styles.chartBox, { height: chartHeight + 20 }]}>
-              {BILL_DAYS.map((d) => {
+              {tier.daily.map((d) => {
                 const h = Math.round((d.kwh / maxDayKwh) * chartHeight);
+                const day = Number(d.date.slice(8));
                 return (
-                  <View key={d.day} style={styles.dayCol}>
+                  <View key={d.date} style={styles.dayCol}>
                     <View style={[styles.dayStack, { height: h }]}>
-                      {d.segs.map((sg: { ti: number; kwh: number }, idx: number) => (
+                      {d.segments.map((sg) => (
                         <View
-                          key={idx}
+                          key={sg.band}
                           style={{
                             height: Math.max(2, Math.round((sg.kwh / d.kwh) * h)),
-                            backgroundColor: TIERS[sg.ti]?.color ?? '#164437',
+                            backgroundColor: TIER_COLORS[sg.band] ?? '#164437',
                             width: '100%',
                           }}
                         />
                       ))}
                     </View>
-                    <Text style={styles.dayLabel}>
-                      {d.day % 4 === 1 ? String(d.day) : ''}
-                    </Text>
+                    <Text style={styles.dayLabel}>{day % 4 === 1 ? String(day) : ''}</Text>
                   </View>
                 );
               })}
@@ -156,26 +171,26 @@ export function BillingTariffView({
         )}
 
         {/* TOU MODE: Proportional Horizontal Distribution Bar */}
-        {billingMode === 'tou' && (
+        {tou && (
           <View style={styles.touBarWrap}>
             <Text style={styles.touBarLabel}>TỶ TRỌNG PHỤ TẢI THEO KHUNG GIỜ</Text>
             <View style={styles.touProgressTrack}>
-              {TOU_TIERS.map((item) => (
+              {tou.periods.map((item) => (
                 <View
-                  key={item.id}
+                  key={item.key}
                   style={[
                     styles.touProgressSeg,
-                    { flex: item.share, backgroundColor: item.color },
+                    { flex: Math.max(item.share_pct, 1), backgroundColor: TOU_COLORS[item.key] },
                   ]}
                 />
               ))}
             </View>
             <View style={styles.touLegendRow}>
-              {TOU_TIERS.map((item) => (
-                <View key={item.id} style={styles.touLegendItem}>
-                  <View style={[styles.touLegendDot, { backgroundColor: item.color }]} />
+              {tou.periods.map((item) => (
+                <View key={item.key} style={styles.touLegendItem}>
+                  <View style={[styles.touLegendDot, { backgroundColor: TOU_COLORS[item.key] }]} />
                   <Text style={styles.touLegendText}>
-                    {item.name}: {item.share}% ({item.kwh} kWh)
+                    {item.name}: {Math.round(item.share_pct)}% ({item.kwh.toFixed(1)} kWh)
                   </Text>
                 </View>
               ))}
@@ -184,28 +199,31 @@ export function BillingTariffView({
         )}
       </View>
 
-      {/* 2. THE WEIGHT BLOCK: TIER 5 / TOU FORECAST BANNER */}
+      {/* 2. THE WEIGHT BLOCK: TIER FORECAST / TOU ADVICE */}
       <View style={styles.weightBlock}>
         <Text style={styles.weightEyebrow}>
-          {billingMode === 'tier' ? warnTag : 'TỐI ƯU HÓA BIỂU GIÁ TOU'}
+          {tier
+            ? `DỰ BÁO ${tier.status.next_band_name?.toUpperCase() ?? 'BẬC THANG'} EVN`
+            : 'TỐI ƯU HÓA BIỂU GIÁ TOU'}
         </Text>
         <Text style={styles.weightText}>
-          {billingMode === 'tier'
-            ? warnText
-            : 'Dịch chuyển phụ tải bình nóng lạnh (2.500 W) và thiết bị công suất lớn sang khung giờ thấp điểm (sau 22:00 @ 1.250 đ) giúp giảm phụ tải đỉnh và tiết kiệm đáng kể so với việc rơi vào Bậc 5 (3.350 đ).'}
+          {tier
+            ? tierAdvice(tier, data.forecast.pace_kwh_per_day, month)
+            : peak && offpeak
+              ? `Dịch chuyển phụ tải lớn (bình nóng lạnh, điều hòa) khỏi giờ cao điểm (${peak.hours}, ${vnd(peak.price_vnd)} đ/kWh) sang giờ thấp điểm (${offpeak.hours}, ${vnd(offpeak.price_vnd)} đ/kWh) giúp tiết kiệm ${Math.round(100 * (1 - offpeak.price_vnd / peak.price_vnd))}% trên mỗi kWh.`
+              : ''}
         </Text>
 
-        {/* Progress bar across tiers if tier mode */}
-        {billingMode === 'tier' && (
+        {tier && (
           <View style={styles.progressTrack}>
-            {TIERS.map((t, i) => (
+            {tier.bands.map((b) => (
               <View
-                key={t.name}
+                key={b.name}
                 style={[
                   styles.progressSeg,
                   {
-                    flex: Math.max(TIER_USED[i], 6),
-                    backgroundColor: TIER_USED[i] > 0 ? t.color : '#E7EBE1',
+                    flex: Math.max(b.kwh, 6),
+                    backgroundColor: b.kwh > 0 ? TIER_COLORS[b.index] : '#E7EBE1',
                   },
                 ]}
               />
@@ -217,89 +235,57 @@ export function BillingTariffView({
       {/* 3. DETAILED TABLE CARD */}
       <View style={styles.card}>
         <Text style={styles.eyebrow}>
-          {billingMode === 'tier'
-            ? 'CHI TIẾT 6 BẬC THANG EVN'
-            : 'CHI TIẾT KHUNG GIỜ TOU (3 GIÁ)'}
+          {tier ? 'CHI TIẾT 6 BẬC THANG EVN' : 'CHI TIẾT KHUNG GIỜ TOU (3 GIÁ)'}
         </Text>
         <Text style={styles.sentenceSmall}>
-          {billingMode === 'tier'
+          {tier
             ? '6 bậc thang lũy tiến áp dụng trên tổng điện tiêu thụ tích lũy trong chu kỳ.'
             : 'Phân bổ điện năng tiêu thụ và chi phí tương ứng theo từng khung giờ.'}
         </Text>
 
-        {/* Table for Tier Mode */}
-        {billingMode === 'tier' && (
-          <>
-            <View style={styles.tableHeader}>
-              <View style={styles.colSpacer} />
-              <Text style={[styles.colHeader, { flex: 1 }]}>BẬC THANG EVN</Text>
-              <Text style={[styles.colHeader, styles.colUsed]}>ĐÃ DÙNG</Text>
-              <Text style={[styles.colHeader, styles.colCost]}>THÀNH TIỀN</Text>
-            </View>
+        <View style={styles.tableHeader}>
+          <View style={styles.colSpacer} />
+          <Text style={[styles.colHeader, { flex: 1 }]}>{tier ? 'BẬC THANG EVN' : 'KHUNG GIỜ'}</Text>
+          <Text style={[styles.colHeader, styles.colUsed]}>{tier ? 'ĐÃ DÙNG' : 'TIÊU THỤ'}</Text>
+          <Text style={[styles.colHeader, styles.colCost]}>THÀNH TIỀN</Text>
+        </View>
 
-            <View style={styles.rowsList}>
-              {rows.map((row, idx) => (
-                <View key={idx} style={styles.tableRow}>
-                  <View
-                    style={[
-                      styles.symbolBadge,
-                      { backgroundColor: row.color },
-                    ]}>
-                    <Text style={styles.symbolBadgeText}>■</Text>
-                  </View>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowName}>{row.name}</Text>
-                    <Text style={styles.rowSub}>{row.sub}</Text>
-                  </View>
-                  <Text style={styles.rowUsed}>{row.used} kWh</Text>
-                  <Text style={styles.rowCost}>{row.cost} đ</Text>
-                </View>
-              ))}
+        <View style={styles.rowsList}>
+          {tier?.bands.map((b) => (
+            <View key={b.name} style={styles.tableRow}>
+              <View style={[styles.symbolBadge, { backgroundColor: TIER_COLORS[b.index] }]}>
+                <Text style={styles.symbolBadgeText}>■</Text>
+              </View>
+              <View style={styles.rowInfo}>
+                <Text style={styles.rowName}>{b.name}</Text>
+                <Text style={styles.rowSub}>{bandRange(b.from_kwh, b.to_kwh, b.price_vnd)}</Text>
+              </View>
+              <Text style={styles.rowUsed}>{Math.round(b.kwh)} kWh</Text>
+              <Text style={styles.rowCost}>{vnd(b.cost_vnd)} đ</Text>
             </View>
-          </>
-        )}
-
-        {/* Table for TOU Mode */}
-        {billingMode === 'tou' && (
-          <>
-            <View style={styles.tableHeader}>
-              <View style={styles.colSpacer} />
-              <Text style={[styles.colHeader, { flex: 1 }]}>KHUNG GIỜ</Text>
-              <Text style={[styles.colHeader, styles.colUsed]}>TIÊU THỤ</Text>
-              <Text style={[styles.colHeader, styles.colCost]}>THÀNH TIỀN</Text>
+          ))}
+          {tou?.periods.map((p) => (
+            <View key={p.key} style={styles.tableRow}>
+              <View style={[styles.symbolBadge, { backgroundColor: TOU_COLORS[p.key] }]}>
+                <Text style={styles.symbolBadgeText}>■</Text>
+              </View>
+              <View style={styles.rowInfo}>
+                <Text style={styles.rowName}>{p.name}</Text>
+                <Text style={styles.rowSub}>
+                  {p.hours} · {vnd(p.price_vnd)} đ
+                </Text>
+              </View>
+              <Text style={styles.rowUsed}>{p.kwh.toFixed(1)} kWh</Text>
+              <Text style={styles.rowCost}>{vnd(p.cost_vnd)} đ</Text>
             </View>
-
-            <View style={styles.rowsList}>
-              {TOU_TIERS.map((tou) => (
-                <View key={tou.id} style={styles.tableRow}>
-                  <View
-                    style={[
-                      styles.symbolBadge,
-                      { backgroundColor: tou.color },
-                    ]}>
-                    <Text style={styles.symbolBadgeText}>■</Text>
-                  </View>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowName}>{tou.name}</Text>
-                    <Text style={styles.rowSub}>
-                      {tou.hours} · {tou.price.toLocaleString('vi-VN')} đ
-                    </Text>
-                  </View>
-                  <Text style={styles.rowUsed}>
-                    {tou.kwh.toFixed(1)} kWh
-                  </Text>
-                  <Text style={styles.rowCost}>
-                    {tou.cost.toLocaleString('vi-VN')} đ
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+          ))}
+        </View>
 
         {/* Subtotal with VAT container */}
         <View style={styles.vatContainer}>
-          <Text style={styles.vatLabel}>Tạm tính 14 ngày (gồm 8% VAT)</Text>
+          <Text style={styles.vatLabel}>
+            Tạm tính {days} ngày (gồm {Math.round(data.tariff.vat_rate * 100)}% VAT)
+          </Text>
           <Text style={styles.vatValue}>{totalCostDisplay} VND</Text>
         </View>
       </View>

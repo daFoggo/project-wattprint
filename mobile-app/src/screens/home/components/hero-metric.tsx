@@ -7,7 +7,7 @@ import type { UnitMode } from '@/features/energy/types';
 interface HeroMetricProps {
   kwh: number;
   cost: number;
-  deltaPct: number;
+  deltaPct: number | null;
   period: string;
   comparison: string;
   unitMode: UnitMode;
@@ -24,7 +24,12 @@ export function HeroMetric({
   onToggleUnit,
 }: HeroMetricProps) {
   const isKwh = unitMode === 'kwh';
-  const deltaWord = deltaPct < 0 ? `giảm ${Math.abs(deltaPct)}%` : `tăng ${deltaPct}%`;
+  const deltaClause =
+    deltaPct === null
+      ? ''
+      : deltaPct === 0
+        ? `, không đổi so với ${comparison}`
+        : `, ${deltaPct < 0 ? `giảm ${Math.abs(deltaPct)}%` : `tăng ${deltaPct}%`} so với ${comparison}`;
   const headline = isKwh
     ? `${kwh.toFixed(1)} kWh`
     : `${Math.round(cost).toLocaleString('vi-VN')} VND`;
@@ -43,7 +48,7 @@ export function HeroMetric({
         accessibilityLabel={`Đổi đơn vị. Hiện tại là ${bigValue} ${bigUnit}. Nhấn để chuyển sang ${otherUnit}.`}
         style={styles.pressable}>
         <Text style={styles.sentence}>
-          Bạn đã dùng <Text style={styles.sentenceHighlight}>{headline}</Text> {period}, {deltaWord} so với {comparison}.
+          Bạn đã dùng <Text style={styles.sentenceHighlight}>{headline}</Text> {period}{deltaClause}.
         </Text>
 
         <View style={styles.metricRow}>

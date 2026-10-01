@@ -1,159 +1,20 @@
 import type {
   AccountGroup,
-  AlertItem,
   BarDatum,
   BillDay,
   BubbleDevice,
   ChatMessage,
   ChatThread,
-  DashboardHeroData,
-  DashboardRange,
   DeviceDetailData,
-  DeviceUsage,
-  EnergySummary,
   ActiveExperiment,
   ExperimentLogItem,
   RangeData,
   Suggestion,
   TierInfo,
-  TimelineEvent,
-  TOUInfo,
   UsageChartItem,
   UsageChartSegment,
-  UsagePoint,
 } from './types';
 
-export const mockSummary: EnergySummary = {
-  currentPowerW: 1840,
-  todayKwh: 12.4,
-  todayCost: 38200,
-  projectedMonthlyCost: 1284000,
-  status: 'good',
-  statusMessage: 'Mọi thứ đang ổn. Điều hòa chạy ở mức hợp lý.',
-  briefSummary:
-    'Đã dùng 12,4 kWh hôm nay, thấp hơn 12% so với cùng kỳ tuần trước. Điều hòa vẫn là phụ tải lớn nhất.',
-};
-
-export const mockDeviceBreakdown: DeviceUsage[] = [
-  { id: 'ac', name: 'Điều hòa', category: 'HVAC', kwh: 6.2, cost: 18600, share: 0.5 },
-  { id: 'fridge', name: 'Tủ lạnh', category: 'Khác', kwh: 2.1, cost: 6300, share: 0.17 },
-  { id: 'water-heater', name: 'Bình nóng lạnh', category: 'Nước', kwh: 2.4, cost: 7200, share: 0.19 },
-  { id: 'induction', name: 'Bếp từ', category: 'Nấu ăn', kwh: 1.1, cost: 3300, share: 0.09 },
-  { id: 'others', name: 'Thiết bị khác', category: 'Khác', kwh: 0.6, cost: 1800, share: 0.05 },
-];
-
-export const mockUsageSeries: UsagePoint[] = [
-  { timestamp: '2026-09-05T12:00:00Z', kwh: 11.2, tariffPeriod: 'normal' },
-  { timestamp: '2026-09-06T12:00:00Z', kwh: 13.8, tariffPeriod: 'peak' },
-  { timestamp: '2026-09-07T12:00:00Z', kwh: 9.4, tariffPeriod: 'off_peak' },
-  { timestamp: '2026-09-08T12:00:00Z', kwh: 12.1, tariffPeriod: 'normal' },
-  { timestamp: '2026-09-09T12:00:00Z', kwh: 14.6, tariffPeriod: 'peak' },
-  { timestamp: '2026-09-10T12:00:00Z', kwh: 10.3, tariffPeriod: 'normal' },
-  { timestamp: '2026-09-11T12:00:00Z', kwh: 12.4, tariffPeriod: 'normal' },
-];
-
-export const DASHBOARD_RATE = 2845; // VND per kWh
-
-export const DASHBOARD_RANGES: Record<DashboardRange, DashboardHeroData> = {
-  day: {
-    kwh: 12.4,
-    deltaPct: -12,
-    period: 'từ đầu ngày đến giờ',
-    comparison: 'các ngày thứ Ba gần đây',
-    shares: [52, 24, 9, 8, 7],
-  },
-  week: {
-    kwh: 81.6,
-    deltaPct: -4,
-    period: 'từ đầu tuần đến giờ',
-    comparison: 'cùng kỳ tuần trước',
-    shares: [48, 22, 12, 10, 8],
-  },
-  month: {
-    kwh: 284.0,
-    deltaPct: 8,
-    period: 'từ đầu tháng đến giờ',
-    comparison: 'cùng kỳ tháng trước',
-    shares: [45, 23, 13, 11, 8],
-  },
-};
-
-export const DEVICE_NAMES = ['Điều hòa', 'Bình nóng lạnh', 'Bếp từ', 'Tủ lạnh', 'Chạy ngầm'];
-
-export const BUBBLE_SLOTS = [
-  { x: 50, y: 46 },
-  { x: 18, y: 21 },
-  { x: 82, y: 25 },
-  { x: 84, y: 74 },
-  { x: 20, y: 77 },
-];
-
-export function getDevicesForRange(range: DashboardRange): BubbleDevice[] {
-  const r = DASHBOARD_RANGES[range];
-  return r.shares.map((pct, i) => {
-    const kwh = Math.round((r.kwh * pct) / 100 * 10) / 10;
-    const cost = Math.round(kwh * DASHBOARD_RATE);
-    return {
-      id: `dev-${i}`,
-      name: DEVICE_NAMES[i],
-      pct,
-      kwh,
-      cost,
-    };
-  });
-}
-
-export const mockAlerts: AlertItem[] = [
-  {
-    id: 'a1',
-    time: '05:12',
-    tone: 'good',
-    text: 'Tải chạy ngầm giảm xuống 35 W sau khi bạn ngắt cụm ổ cắm TV.',
-  },
-  {
-    id: 'a2',
-    time: '18:40',
-    tone: 'warning',
-    text: 'Điều hòa đã bật ở 24°C. Còn 48 kWh nữa sẽ chuyển sang Bậc 4 EVN.',
-  },
-];
-
-export const mockTimeline: TimelineEvent[] = [
-  {
-    id: 't1',
-    time: '18:40',
-    rampIndex: 0,
-    text: 'Điều hòa đã bật, cài đặt 24°C.',
-    detail: [],
-  },
-  {
-    id: 't2',
-    time: '17:05',
-    rampIndex: 1,
-    text: 'Bình nóng lạnh đã bật trong 22 phút.',
-    detail: [],
-  },
-  {
-    id: 't3',
-    time: '12:18',
-    rampIndex: 2,
-    text: 'Bếp từ đã bật 3 lần, hiện đã tắt.',
-    detail: [
-      'bật lúc 12:18 trong 14p, hiện đã tắt',
-      'bật lúc 07:40 trong 6p, hiện đã tắt',
-      'bật lúc 06:12 trong 3p, hiện đã tắt',
-    ],
-  },
-  {
-    id: 't4',
-    time: '05:12',
-    rampIndex: 4,
-    text: 'Tải chạy ngầm giảm từ 110 W xuống 35 W.',
-    detail: [],
-  },
-];
-
-// --- Official EVN 6-tier household tariff ---
 export const TIERS: TierInfo[] = [
   { name: 'Bậc 1', sub: '0 đến 50 kWh, 1.984 đ', price: 1984, cap: 50, color: '#DEEEBD', symbol: '■', pattern: 'solid' },
   { name: 'Bậc 2', sub: '51 đến 100 kWh, 2.050 đ', price: 2050, cap: 100, color: '#B5E930', symbol: '■', pattern: 'solid' },
@@ -163,17 +24,9 @@ export const TIERS: TierInfo[] = [
   { name: 'Bậc 6', sub: 'trên 400 kWh, 3.460 đ', price: 3460, cap: Infinity, color: '#DC2626', symbol: '■', pattern: 'solid' },
 ];
 
-export const TIER_PATTERNS: ('solid')[] = [
-  'solid',
-  'solid',
-  'solid',
-  'solid',
-  'solid',
-  'solid',
-];
+export const DEVICE_NAMES = ['Điều hòa', 'Bình nóng lạnh', 'Bếp từ', 'Tủ lạnh', 'Chạy ngầm'];
 
 export const DAILY = [19, 21, 18, 22, 20, 17, 23, 19, 21, 20, 18, 22, 19, 25];
-export const LAST_DAILY = [18, 20, 17, 21, 19, 16, 22, 18, 20, 19, 17, 21, 18, 15];
 
 export const LAST_MONTH_30_DAYS = [
   18, 20, 17, 21, 19, 16, 22, 18, 20, 19, 17, 21, 18, 15,
@@ -219,55 +72,12 @@ export const PACE = MONTH_KWH / DAYS_IN;
 export const HOME_COST = TIERS.reduce((s, t, i) => s + TIER_USED[i] * t.price, 0);
 export const MONTH_COST = HOME_COST * 1.08;
 export const RATE = MONTH_COST / MONTH_KWH;
-export const NEXT_I = TIERS.findIndex((t) => t.cap > MONTH_KWH);
-export const CURRENT_TIER = TIERS[NEXT_I] ?? TIERS[2];
-export const NEXT_TIER = TIERS[NEXT_I + 1] ?? TIERS[TIERS.length - 1];
-export const HEADROOM = CURRENT_TIER.cap - MONTH_KWH;
-export const CROSS_DAY = DAYS_IN + Math.ceil(HEADROOM / PACE);
-export const STEP_PCT = Math.round((NEXT_TIER.price / CURRENT_TIER.price - 1) * 100);
+export const LAST_DAILY = [18, 20, 17, 21, 19, 16, 22, 18, 20, 19, 17, 21, 18, 15];
 export const LAST_TOTAL = LAST_DAILY.reduce((a, b) => a + b, 0);
 export const MONTH_DELTA = Math.round((MONTH_KWH / LAST_TOTAL - 1) * 100);
-
-// Projected full-month figures at current pace (14-day window -> 30-day projection)
-export const PROJECTED_MONTH_KWH = 608;
-export const PROJECTED_MONTH_COST = 1938000;
-
-// --- TOU (time-of-use) tariff, 3 price windows ---
-export const TOU_TIERS: TOUInfo[] = [
-  {
-    id: 'tou-off',
-    name: 'Thấp điểm',
-    sub: '1.250 đ/kWh',
-    price: 1250,
-    share: 40,
-    hours: '22:00–06:00',
-    kwh: 113.6,
-    cost: 142000,
-    color: '#7CC24C',
-  },
-  {
-    id: 'tou-normal',
-    name: 'Bình thường',
-    sub: '1.850 đ/kWh',
-    price: 1850,
-    share: 22,
-    hours: '06:00–18:00',
-    kwh: 62.5,
-    cost: 115600,
-    color: '#E5A93C',
-  },
-  {
-    id: 'tou-peak',
-    name: 'Cao điểm',
-    sub: '3.150 đ/kWh',
-    price: 3150,
-    share: 38,
-    hours: '18:00–22:00',
-    kwh: 107.9,
-    cost: 339900,
-    color: '#DC2626',
-  },
-];
+export const NEXT_I = TIERS.findIndex((t) => t.cap > MONTH_KWH);
+export const CURRENT_TIER = TIERS[NEXT_I] ?? TIERS[2];
+export const HEADROOM = CURRENT_TIER.cap - MONTH_KWH;
 
 export const DAY_CHART_ITEMS: UsageChartItem[] = [
   {

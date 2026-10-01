@@ -161,12 +161,15 @@ export async function request<T>(
         }
       }
 
+      // `message` (app cũ) hoặc `detail` / `title` (RFC 9457 problem+json của backend)
+      const pick = (key: string) =>
+        typeof errorData === 'object' && errorData !== null && key in errorData
+          ? String((errorData as Record<string, unknown>)[key])
+          : undefined;
       const message =
-        (typeof errorData === 'object' &&
-          errorData !== null &&
-          'message' in errorData
-          ? String(errorData.message)
-          : undefined) ||
+        pick('message') ||
+        pick('detail') ||
+        pick('title') ||
         (typeof errorData === 'string' ? errorData : undefined) ||
         `Request failed with status ${response.status}`;
 

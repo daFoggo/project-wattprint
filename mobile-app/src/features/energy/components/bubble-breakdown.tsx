@@ -2,8 +2,15 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DataRamp, Fonts } from '@/constants/theme';
-import { BUBBLE_SLOTS } from '@/features/energy/mock';
 import type { BubbleDevice } from '@/features/energy/types';
+
+const BUBBLE_SLOTS = [
+  { x: 50, y: 46 },
+  { x: 18, y: 21 },
+  { x: 82, y: 25 },
+  { x: 84, y: 74 },
+  { x: 20, y: 77 },
+];
 
 interface BubbleBreakdownProps {
   devices: BubbleDevice[];

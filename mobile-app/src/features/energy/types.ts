@@ -35,35 +35,12 @@ export type UnitMode = 'kwh' | 'cost';
 
 export type DashboardRange = 'day' | 'week' | 'month';
 
-export interface DashboardHeroData {
-  kwh: number;
-  deltaPct: number;
-  period: string;
-  comparison: string;
-  shares: number[];
-}
-
 export interface BubbleDevice {
   id: string;
   name: string;
   pct: number;
   kwh: number;
   cost: number;
-}
-
-export interface AlertItem {
-  id: string;
-  time: string;
-  tone: 'warning' | 'info' | 'good';
-  text: string;
-}
-
-export interface TimelineEvent {
-  id: string;
-  time: string;
-  rampIndex: number;
-  text: string;
-  detail: string[];
 }
 
 export type UsageTab = 'day' | 'week' | 'month' | 'year';
