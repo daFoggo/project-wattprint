@@ -6,8 +6,9 @@ Mỗi thư mục con là một project độc lập, có `docker-compose.yml` v�
 |---|---|---|
 | `backend/` | FastAPI + PostgreSQL/TimescaleDB, API trả dữ liệu phân rã | API `8001`, DB `5433` |
 | `nilmformer-experiment/` | Train / suy luận NILMFormer (GPU) + inference API | `8002` |
+| `mobile-app/` | Ứng dụng di động React Native / Expo (theo dõi điện năng & Copilot) | Metro `8081` |
 
-Luồng dữ liệu: `nilmformer-experiment` (train, suy luận) → CSV phân rã → `backend` (TimescaleDB + API).
+Luồng dữ liệu: `nilmformer-experiment` (train, suy luận) → CSV phân rã → `backend` (TimescaleDB + API) → `mobile-app` (trực quan hoá tiêu thụ, biểu giá điện, RAG Copilot).
 
 ---
 
@@ -152,9 +153,34 @@ curl -X POST localhost:8001/api/v1/disaggregate -H 'content-type: application/js
      -d '{"start":"2023-07-10T00:00:00","power_w":[...ít nhất 128 giá trị, mỗi phút 1 giá trị, null = thiếu...]}'
 ```
 
+### 9. Mobile App (Expo / React Native)
+
+Thư mục `mobile-app/` là ứng dụng di động cho người dùng cuối (iOS / Android / Web), kết nối với FastAPI backend để hiển thị phân rã phụ tải và gợi ý tiết kiệm điện.
+
+#### Cài đặt & chạy:
+
+```bash
+cd mobile-app
+pnpm install
+cp .env.example .env    # cấu hình EXPO_PUBLIC_API_URL=http://localhost:8001/api/v1
+pnpm start
+```
+
+#### Chạy trên thiết bị thật qua USB Debugging:
+
+1. Kết nối điện thoại Android qua cáp USB, bật **USB Debugging**.
+2. Thiết lập reverse port forwarding để điện thoại kết nối Metro và Backend:
+   ```bash
+   adb reverse tcp:8081 tcp:8081    # Metro bundler
+   adb reverse tcp:8001 tcp:8001    # Backend API
+   ```
+3. Mở ứng dụng WattPrint trên điện thoại (hoặc nhấn `a` trong terminal Metro, hoặc chạy `pnpm android` nếu cần build lại APK).
+4. Chi tiết về Fast Refresh / Hot Reload xem tại [`mobile-app/README.md`](mobile-app/README.md).
+
 ### Cổng & bảo mật
 
 Mặc định các cổng mở trên mọi interface. Trên server thật: đổi mật khẩu DB, đặt firewall (chỉ mở `8001`, đóng `5433`/`8002`
 với bên ngoài) hoặc đặt sau reverse proxy.
 
 Chi tiết kỹ thuật pipeline NILM (kiến trúc, khác biệt so với paper): [`nilmformer-experiment/README.md`](nilmformer-experiment/README.md).
+
