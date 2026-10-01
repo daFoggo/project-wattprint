@@ -1,5 +1,8 @@
 NILMFormer/data/*/*
 !NILMFormer/data/*/README.MD
+# the parent dir must be re-included first, or the HOUSES_Labels rule below has no effect
+!NILMFormer/data/REFIT/RAW_DATA_CLEAN/
+NILMFormer/data/REFIT/RAW_DATA_CLEAN/*
 !NILMFormer/data/REFIT/RAW_DATA_CLEAN/HOUSES_Labels
 results/
 .env

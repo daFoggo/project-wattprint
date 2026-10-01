@@ -1,0 +1,71 @@
+# Per-appliance settings of the pipeline (on top of NILMFormer/configs/datasets.yaml).
+# The 4 paper appliances keep the paper's house lists; the entries below add appliances the
+# vendored REFIT builder does not know (pipeline.common.PipelineBuilder reads them).
+#
+#   labels           : HOUSES_Labels names of this appliance, first match per house wins
+#   house_with_app_i : houses used for train / valid / test
+#   min/max_threshold: ON status range in W (same meaning as in the vendored builder)
+defaults:
+  test_house: 2       # held out from every model -> the household demo / backend import
+  valid_house: 9
+
+Fridge:
+  # REFIT: the main fridge-freezer only. Houses with a second fridge or freezer (1, 3, 4, 7, 8,
+  # 10, 11, 16, 17, 18, 20) are left out: that unit would sit unlabelled in the aggregate with the
+  # same compressor signature. 19 records fridge and freezer on one plug.
+  # + Plegma (every fridge of the house is metered; 112's two are summed by pipeline/convert.py).
+  # On the served household 101, with the same post-processing (paper/data/ablations.csv): REFIT
+  # only F1 0.875 / MR 0.461, REFIT + Plegma F1 0.801 / MR 0.525 -> Plegma helps the energy, not
+  # the detection. (An earlier "REFIT only finds 8%" came from a transferred threshold, not data.)
+  labels: [Fridge-Freezer, Fridge & Freezer, Fridge]
+  house_with_app_i: [2, 5, 9, 12, 15, 19, 21,
+                     101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]
+  test_house: 101
+  valid_house: 103
+  min_threshold: 50
+  max_threshold: 1000
+
+TumbleDryer:
+  # 9 and 18 (washer-dryer) and 17 (garage dryer, different label) are left out.
+  # Neither 2 nor 9 has one, so it gets its own held-out houses: evaluate with `make eval-app`.
+  labels: [TumbleDryer]
+  house_with_app_i: [1, 3, 5, 7, 8, 13, 15, 20, 21]
+  test_house: 15
+  valid_house: 13
+  min_threshold: 300
+  max_threshold: 4000
+
+WashingMachine:
+  # paper appliance, paper houses (NILMFormer/configs/datasets.yaml) + Plegma, validated and
+  # tested on the served household's dataset (REFIT-only F1 0.33 there). The REFIT-only (paper
+  # protocol) bundles are kept in artifacts/models/paper_refit/.
+  labels: [WashingMachine]
+  house_with_app_i: [1, 2, 3, 5, 6, 7, 8, 9, 10, 13, 15, 16, 17, 18, 19,
+                     101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]
+  test_house: 101
+  valid_house: 103
+  min_threshold: 300
+  max_threshold: 4000
+
+# ---- appliances REFIT (UK) does not have: trained on the converted training-only datasets
+# (pipeline/convert.py; house ids 101-113 = Plegma, Greece; 201-242 = PRECON, Pakistan).
+# Plegma 101 is held out from every model: it is the household served to the backend.
+AC:
+  # sum of all AC units of the house. PRECON meters room circuits and most houses have more ACs
+  # than metered circuits (Metadata.csv No_of_ACs): only the 6 with every AC metered are kept.
+  labels: [AC]
+  house_with_app_i: [101, 102, 103, 104, 105, 107, 108, 110, 111, 112, 113,
+                     201, 208, 211, 214, 223, 232]
+  test_house: 101
+  valid_house: 103
+  min_threshold: 50
+  max_threshold: 10000
+
+WaterHeater:
+  # Plegma "boiler" (electric water heater), 12 of 13 houses
+  labels: [WaterHeater]
+  house_with_app_i: [101, 102, 103, 104, 105, 106, 107, 109, 110, 111, 112, 113]
+  test_house: 101
+  valid_house: 103
+  min_threshold: 200
+  max_threshold: 6000

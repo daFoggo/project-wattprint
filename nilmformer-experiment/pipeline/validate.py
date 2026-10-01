@@ -8,11 +8,13 @@ data cache is shared. Exit code 1 if any check fails.
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 os.environ["CACHE_DIR"] = str(Path(os.environ.get("ARTIFACTS", "artifacts")) / "cache")
 os.environ["ARTIFACTS"] = str(Path(os.environ.get("ARTIFACTS", "artifacts")) / "_validate")
+os.environ["NILM_APPS"] = "Kettle"  # the API check serves the mini Kettle model trained below
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -101,6 +103,34 @@ def _():
     return f"fast == original (max diff {d:.1e})"
 
 
+@check("extra appliances")
+def _():
+    from pipeline.common import PipelineBuilder, appliance_specs, data_path_for, house_appliances
+    for app, spec in appliance_specs().items():
+        c = load_config(app)
+        assert {c.test_house, c.valid_house} <= set(c.house_with_app_i), f"{app}: test/valid split"
+        for h in c.house_with_app_i:
+            assert Path(data_path_for(h), f"CLEAN_House{h}.csv").exists(), \
+                f"{app}: house {h} missing (run `make convert` for the training-only datasets)"
+            assert app in house_appliances(h), f"{app}: no label in house {h}"
+    # label resolution on a synthetic house: its Fridge-Freezer column must come out as Fridge
+    d = Path(tempfile.mkdtemp())
+    t = pd.date_range("2014-01-01", periods=720, freq="10s")
+    fridge = np.where((np.arange(720) // 60) % 2 == 0, 90.0, 0.0)
+    pd.DataFrame({"Time": t.strftime("%Y-%m-%d %H:%M:%S"), "Unix": t.astype("int64") // 10**9,
+                  "Aggregate": fridge + 100, "A1": fridge, "A2": 0.0, "Issues": 0}
+                 ).to_csv(d / "CLEAN_House1.csv", index=False)
+    pd.DataFrame([[1, "Time", "Unix", "Aggregate", "Fridge-Freezer", "Kettle", "Issues"]],
+                 columns=["House_id", "Time", "Unix", "Aggregate", "Appliance1", "Appliance2",
+                          "Issues"]).to_csv(d / "HOUSES_Labels", index=False)
+    out = PipelineBuilder(data_path=f"{d}/", mask_app=["Fridge", "Kettle"], sampling_rate="1min",
+                          window_size=4).get_house_data([1])
+    assert list(out.columns) == ["Aggregate", "Fridge", "Fridge_status", "Kettle", "Kettle_status"]
+    assert out["Fridge"].max() == 90 and 0 < out["Fridge_status"].sum() < len(out)
+    assert "TumbleDryer" not in house_appliances(2) and "Fridge" in house_appliances(2)
+    return f"{', '.join(appliance_specs())}: houses/labels OK, Fridge-Freezer -> Fridge OK"
+
+
 @check("mini train (1 epoch)")
 def _():
     return run("pipeline.train", "--appliance", "Kettle", "--epochs", "1", "--train-houses",
@@ -159,8 +189,9 @@ def _():
 
 @check("config yaml sane")
 def _():
+    from pipeline.common import APPLIANCES
     cfg = yaml.safe_load(open("pipeline/postprocess.yaml"))
-    assert set(cfg["appliances"]) == {"Kettle", "Microwave", "Dishwasher", "WashingMachine"}
+    assert set(cfg["appliances"]) == set(APPLIANCES), sorted(cfg["appliances"])
 
 
 print()

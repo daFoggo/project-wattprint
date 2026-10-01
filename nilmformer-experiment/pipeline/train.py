@@ -26,8 +26,8 @@ def main():
     ap.add_argument("--appliance", required=True)
     ap.add_argument("--model", default="NILMFormer")
     ap.add_argument("--epochs", type=int, default=None, help="default: paper (50)")
-    ap.add_argument("--test-house", type=int, default=2)
-    ap.add_argument("--valid-house", type=int, default=9)
+    ap.add_argument("--test-house", type=int, default=None, help="default: pipeline/appliances.yaml")
+    ap.add_argument("--valid-house", type=int, default=None, help="default: pipeline/appliances.yaml")
     ap.add_argument("--batch-size", type=int, default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--sampling-rate", default=env_default("SAMPLING_RATE", "1min"))
@@ -42,6 +42,8 @@ def main():
     cfg = load_config(a.appliance, a.model)
     cfg.sampling_rate, cfg.window_size = a.sampling_rate, a.window_size
     bs = a.batch_size or cfg.batch_size
+    a.test_house = a.test_house or cfg.test_house
+    a.valid_house = a.valid_house or cfg.valid_house
 
     assert a.test_house in cfg.house_with_app_i and a.valid_house in cfg.house_with_app_i
     held_out = {a.test_house, a.valid_house}

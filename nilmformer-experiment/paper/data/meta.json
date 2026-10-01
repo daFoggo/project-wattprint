@@ -1,0 +1,123 @@
+{
+  "generated": "2026-10-01T06:07:13+00:00",
+  "git": "a5936f9",
+  "n_params": 383283,
+  "model_kwargs": {
+    "c_out": 1,
+    "kernel_size": 3,
+    "kernel_size_head": 3,
+    "dilations": "[1, 2, 4, 8]",
+    "conv_bias": true,
+    "use_efficient_attention": false,
+    "n_encoder_layers": 3,
+    "d_model": 96,
+    "dp_rate": 0.2,
+    "pffn_ratio": 4,
+    "n_head": 8,
+    "norm_eps": 1e-05
+  },
+  "postprocess": {
+    "residual_name": "Other",
+    "cap_to_aggregate": true,
+    "appliances": {
+      "Kettle": {
+        "threshold_w": 534.0,
+        "min_on_steps": 1,
+        "smooth": 1,
+        "max_w": 6000,
+        "truth_threshold_w": 500
+      },
+      "Microwave": {
+        "threshold_w": 106.4,
+        "min_on_steps": 1,
+        "smooth": 1,
+        "max_w": 6000,
+        "truth_threshold_w": 200
+      },
+      "Dishwasher": {
+        "threshold_w": 658.5,
+        "min_on_steps": 2,
+        "smooth": 3,
+        "max_w": 4000,
+        "truth_threshold_w": 300
+      },
+      "WashingMachine": {
+        "threshold_w": 206.6,
+        "min_on_steps": 2,
+        "smooth": 3,
+        "max_w": 4000,
+        "truth_threshold_w": 300,
+        "gain": 1.88
+      },
+      "Fridge": {
+        "threshold_w": 20,
+        "min_on_steps": 3,
+        "smooth": 3,
+        "max_w": 1000,
+        "truth_threshold_w": 50,
+        "tune_threshold": false,
+        "gain": 0.826
+      },
+      "TumbleDryer": {
+        "threshold_w": 116.8,
+        "min_on_steps": 2,
+        "smooth": 3,
+        "max_w": 4000,
+        "truth_threshold_w": 300
+      },
+      "AC": {
+        "threshold_w": 286.3,
+        "min_on_steps": 2,
+        "smooth": 3,
+        "max_w": 10000,
+        "truth_threshold_w": 100,
+        "gain": 1.458
+      },
+      "WaterHeater": {
+        "threshold_w": 1002.2,
+        "min_on_steps": 1,
+        "smooth": 1,
+        "max_w": 6000,
+        "truth_threshold_w": 500,
+        "gain": 0.989
+      }
+    }
+  },
+  "household": {
+    "fridge_constant_draw": {
+      "days": 68,
+      "months": [
+        "2022-07",
+        "2022-08",
+        "2022-09",
+        "2023-02"
+      ],
+      "median_w": 72.03666666666666,
+      "F1_excl": 0.9126097874002567,
+      "SAE_excl": 0.2530664061949852,
+      "daily_r_all": 0.13165595504350083,
+      "daily_r_excl": 0.8952380300526753
+    },
+    "house": 101,
+    "dataset": "Plegma",
+    "start": "2022-07-15 00:00:00",
+    "end": "2023-09-30 22:23:00",
+    "valid_days": 426.93333333333334,
+    "missing_share": 0.036122817579771205,
+    "aggregate_kwh": 3135.199692683333,
+    "metered_share": 0.810088929971133,
+    "found_share": 0.6905907735043901
+  },
+  "names": {
+    "Kettle": "Kettle",
+    "Microwave": "Microwave",
+    "Dishwasher": "Dishwasher",
+    "WashingMachine": "Washing machine",
+    "Fridge": "Fridge",
+    "TumbleDryer": "Tumble dryer",
+    "AC": "Air conditioner",
+    "WaterHeater": "Water heater"
+  },
+  "paper_reference": "arXiv:2506.05880, Table 2 (REFIT, 1 min, w=128)",
+  "ablation_gpu": true
+}

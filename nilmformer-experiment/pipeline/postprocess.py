@@ -25,6 +25,15 @@ def drop_short_runs(on, min_len):
     return on
 
 
+def app_power(raw, app, p, gain=True):
+    """One appliance: smooth -> threshold -> drop short runs -> calibrate (gain) -> cap at max_w."""
+    x = np.clip(np.nan_to_num(raw[f"{app}_pred"].values), 0, None)
+    if p["smooth"] > 1:
+        x = pd.Series(x).rolling(p["smooth"], center=True, min_periods=1).median().values
+    on = drop_short_runs(x >= p["threshold_w"], p["min_on_steps"])
+    return np.where(on, np.minimum(x * (p.get("gain", 1.0) if gain else 1.0), p["max_w"]), 0.0)
+
+
 def process(raw, cfg):
     agg = raw["aggregate"].values
     ok = np.isfinite(agg)
@@ -32,11 +41,7 @@ def process(raw, cfg):
     for app, p in cfg["appliances"].items():
         if f"{app}_pred" not in raw:
             continue
-        x = np.clip(np.nan_to_num(raw[f"{app}_pred"].values), 0, None)
-        if p["smooth"] > 1:
-            x = pd.Series(x).rolling(p["smooth"], center=True, min_periods=1).median().values
-        on = drop_short_runs(x >= p["threshold_w"], p["min_on_steps"])
-        out[app] = np.where(on, np.minimum(x, p["max_w"]), 0.0)
+        out[app] = app_power(raw, app, p)
     total = sum(out.values())
     if cfg["cap_to_aggregate"]:
         scale = np.where(ok & (total > agg), agg / np.maximum(total, 1e-9), 1.0)
@@ -62,7 +67,8 @@ def metrics(raw, proc, cfg):
         prec, rec = tp / max(ys.sum(), 1), tp / max(ts.sum(), 1)
         res[app] = {
             "MAE": float(np.abs(t - y).mean()), "RMSE": float(np.sqrt(((t - y) ** 2).mean())),
-            "SAE": float(abs(y.sum() - t.sum()) / max(t.sum(), 1e-9)),
+            # undefined when the house never uses the appliance (true energy 0)
+            "SAE": float(abs(y.sum() - t.sum()) / t.sum()) if t.sum() > 0 else None,
             "NDE": float(((t - y) ** 2).sum() / max((t ** 2).sum(), 1e-9)),
             "precision": float(prec), "recall": float(rec),
             "F1": float(2 * prec * rec / max(prec + rec, 1e-9)),
@@ -83,13 +89,23 @@ def tune(raw, cfg):
         if ts.sum() == 0:
             print(f"{app}: no activation in this house, keep threshold")
             continue
-        best = (-1.0, float(p["threshold_w"]))
-        for thr in np.unique(np.clip(np.quantile(x[m], np.linspace(0.5, 0.9995, 120)), 1, None)):
-            ys = x[m] >= thr
-            tp = (ts & ys).sum()
-            best = max(best, (2 * tp / max(ts.sum() + ys.sum(), 1), float(thr)))
-        print(f"{app}: threshold {p['threshold_w']} -> {best[1]:.1f} W  (F1 {best[0]:.3f})")
-        p["threshold_w"] = round(best[1], 1)
+        # cycling loads (fridge): an F1-optimal threshold follows the power level of THIS house's
+        # unit and cuts another house's smaller unit out entirely -> keep the configured one
+        if p.get("tune_threshold", True):
+            best = (-1.0, float(p["threshold_w"]))
+            for thr in np.unique(np.clip(np.quantile(x[m], np.linspace(0.5, 0.9995, 120)), 1, None)):
+                ys = x[m] >= thr
+                tp = (ts & ys).sum()
+                best = max(best, (2 * tp / max(ts.sum() + ys.sum(), 1), float(thr)))
+            print(f"{app}: threshold {p['threshold_w']} -> {best[1]:.1f} W  (F1 {best[0]:.3f})")
+            p["threshold_w"] = round(best[1], 1)
+        # gain: the MSE-trained models shrink the ON level towards 0 (AC: ~0.5x); calibrate the
+        # energy on the validation house, bounded so one odd house cannot blow it up
+        y = app_power(raw, app, p, gain=False)[m]
+        if y.sum() > 0:
+            g = float(np.clip(t[m].sum() / y.sum(), 0.5, 3.0))
+            print(f"{app}: gain {p.get('gain', 1.0)} -> {g:.3f}")
+            p["gain"] = round(g, 3)
     return cfg
 
 

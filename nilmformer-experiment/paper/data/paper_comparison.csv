@@ -1,0 +1,5 @@
+appliance,paper_MAE,ours_MAE,paper_MR,ours_MR,ours_F1
+Kettle,9.3,10.3236,0.522,0.63063,0.835422
+Microwave,5.7,4.91826,0.11,0.0708572,0.236441
+Dishwasher,29.1,42.769,0.332,0.474877,0.801756
+WashingMachine,18.9,19.9935,0.25,0.114618,0.442809

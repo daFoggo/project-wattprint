@@ -1,0 +1,16 @@
+study,appliance,variant,threshold_w,gain,F1,SAE,MR_post,true_kwh,pred_kwh,note
+fridge_threshold,Fridge,tuned on house 103,92.3,3,0.148363,0.821211,0.0785251,417.075,74.5684,
+fridge_threshold,Fridge,fixed 20 W,20,0.826,0.800938,0.418047,0.527112,417.075,242.718,
+gain,AC,gain = 1,286.3,1,0.809402,0.579244,0.388961,1445.57,608.235,
+gain,WaterHeater,gain = 1,1002.2,1,0.984541,0.0331091,0.907234,638.44,617.302,
+gain,Fridge,gain = 1,20,1,0.800938,0.297607,0.606481,417.075,292.951,
+gain,WashingMachine,gain = 1,206.6,1,0.467703,0.443999,0.267351,38.7007,21.5176,
+gain,AC,gain tuned on 103,286.3,1.458,0.809402,0.407206,0.529046,1445.57,856.928,
+gain,WaterHeater,gain tuned on 103,1002.2,0.989,0.984541,0.0572593,0.891664,638.44,601.883,
+gain,Fridge,gain tuned on 103,20,0.826,0.800938,0.421976,0.525348,417.075,241.08,
+gain,WashingMachine,gain tuned on 103,206.6,1.88,0.467703,0.161068,0.329162,38.7007,32.4672,
+inventory,TumbleDryer,run on house 2,,,,,,0,120.113,house 2 has no tumble dryer: every kWh is a false positive
+training_data,Fridge,REFIT only,20,0.664,0.874671,0.454322,0.460791,417.075,227.589,
+training_data,WashingMachine,REFIT only,111.3,3,0.332731,0.26997,0.177699,38.7007,49.1487,
+training_data,Fridge,REFIT + Plegma,20,0.826,0.800938,0.421975,0.525348,417.075,241.08,
+training_data,WashingMachine,REFIT + Plegma,206.6,1.88,0.467703,0.161068,0.329162,38.7007,32.4672,

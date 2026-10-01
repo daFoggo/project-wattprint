@@ -8,14 +8,15 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from pipeline.common import ART, APPLIANCES, env_default, house_data
+from pipeline.common import ART, env_default, house_appliances, house_data
 from pipeline.engine import NILMInferenceEngine, stitch
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--house", type=int, required=True)
-    ap.add_argument("--apps", nargs="+", default=APPLIANCES)
+    ap.add_argument("--apps", nargs="+", default=None,
+                    help="default: the household's inventory (appliances it actually has)")
     ap.add_argument("--model", default="NILMFormer")
     ap.add_argument("--stride", type=int, default=None)
     ap.add_argument("--limit", type=int, default=None, help="only the first N samples (smoke tests)")
@@ -23,6 +24,9 @@ def main():
     ap.add_argument("--window-size", type=int, default=int(env_default("WINDOW_SIZE", "128")))
     a = ap.parse_args()
     ws, sr = a.window_size, a.sampling_rate
+    # a model is only run for appliances the household has: run on a house without that
+    # appliance, it reports false activations (e.g. the dryer model on the dishwasher's heating)
+    a.apps = a.apps or house_appliances(a.house)
 
     # the household's aggregate (+ appliance ground truth) from the REFIT csv, on a regular grid
     X, st = house_data(a.apps, [a.house], sr, ws, infer=True)

@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- standalone copy of the published report (claude.ai/artifact/NrgkZepRmhUVzvKKGBXqKn); open in a browser -->
+<style>body { margin: 0; } [hidden] { display: none !important; }</style>
+</head>
+<body>
+<title>Báo cáo NILMFormer WattPrint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~68ch) with full-width tables/figures; a meter-panel palette, per-appliance colours shared by tables and charts */
+:root {
+  --bg: #f5f7f9;
+  --surface: #ffffff;
+  --ink: #16202b;
+  --muted: #5a6676;
+  --rule: #d6dce4;
+  --accent: #0d6a8c;
+  --accent-soft: #e2f0f5;
+  --good: #1d7a4c;
+  --warn: #a8610a;
+  --bad: #b3261e;
+  --ac: #2a62b0;
+  --wh: #d2501a;
+  --fr: #11877a;
+  --wm: #7a4bb4;
+  --ot: #8a94a3;
+  --gap: #e9ecf0;
+  --f-body: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #182029; --ink: #e5e9ee; --muted: #9aa6b4; --rule: #2c3743;
+    --accent: #5bb6d6; --accent-soft: #16303b; --good: #5cc48e; --warn: #e3a54a; --bad: #f07a70;
+    --ac: #6a9be0; --wh: #f07c4a; --fr: #3fc0ae; --wm: #ad86e6; --ot: #7d8896; --gap: #1f2933;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #182029; --ink: #e5e9ee; --muted: #9aa6b4; --rule: #2c3743;
+  --accent: #5bb6d6; --accent-soft: #16303b; --good: #5cc48e; --warn: #e3a54a; --bad: #f07a70;
+  --ac: #6a9be0; --wh: #f07c4a; --fr: #3fc0ae; --wm: #ad86e6; --ot: #7d8896; --gap: #1f2933;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.62; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.25; margin: 0; }
+h1 { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.45rem; font-weight: 700; padding-top: 12px; }
+h3 { font-size: 1.08rem; font-weight: 600; margin-top: 8px; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 16px; padding-block: 28px; border-top: 1px solid var(--rule); }
+.eyebrow { font-family: var(--f-mono); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.meta { color: var(--muted); font-size: 0.92rem; }
+header { display: flex; flex-direction: column; gap: 12px; padding-bottom: 28px; }
+.lede { font-size: 1.08rem; color: var(--ink); max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+ul, ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+nav.toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px 24px; font-size: 0.93rem; padding: 14px 0 4px; }
+nav.toc a { text-decoration: none; color: var(--ink); display: flex; gap: 10px; }
+nav.toc a span { font-family: var(--f-mono); color: var(--muted); font-size: 0.85em; padding-top: 2px; }
+nav.toc a:hover { color: var(--accent); }
+
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.fig { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fig b { font-family: var(--f-mono); font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.fig small { color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
+@media (max-width: 720px) { .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; background: var(--bg); white-space: nowrap; }
+td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .sub { display: block; color: var(--muted); font-size: 0.82rem; }
+.caption { color: var(--muted); font-size: 0.86rem; max-width: 80ch; }
+
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: 0; }
+.c-ac { background: var(--ac); } .c-wh { background: var(--wh); } .c-fr { background: var(--fr); } .c-wm { background: var(--wm); } .c-ot { background: var(--ot); }
+.pill { display: inline-block; font-family: var(--f-mono); font-size: 0.76rem; padding: 1px 7px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+.good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.better { color: var(--good); font-weight: 500; } .worse { color: var(--bad); font-weight: 500; }
+
+.note { border-left: 3px solid var(--accent); background: var(--surface); padding: 12px 16px; border-radius: 0 6px 6px 0; max-width: 80ch; font-size: 0.95rem; }
+.note.warnbox { border-left-color: var(--warn); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card h3 { margin: 0; }
+.card p, .card li { font-size: 0.93rem; }
+
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 0; }
+pre.cmd { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0; font-family: var(--f-mono); font-size: 0.84rem; line-height: 1.6; }
+.chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 12px 6px; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.chart svg text { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.84rem; color: var(--muted); padding: 4px 4px 8px; }
+.legend i { display: inline-block; width: 18px; height: 9px; margin-right: 6px; vertical-align: 0; border-radius: 2px; }
+.bar { display: flex; height: 26px; border-radius: 5px; overflow: hidden; border: 1px solid var(--rule); }
+.bar span { display: block; height: 100%; }
+.barrow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 0.86rem; }
+.barrow > div:first-child { color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+footer { color: var(--muted); font-size: 0.85rem; padding-top: 24px; border-top: 1px solid var(--rule); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">WattPrint · Thử nghiệm NILM · 01/10/2026</div>
+  <h1>Báo cáo NILMFormer WattPrint</h1>
+  <p class="lede">Báo cáo này tổng kết việc huấn luyện 8 model tách tải thiết bị (NILM) bằng NILMFormer theo đúng protocol của paper gốc. Model được train trên 3 bộ dữ liệu công khai (REFIT, Plegma, PRECON). Phần cuối là kết quả chi tiết trên hộ gia đình mà backend đang phục vụ (Plegma 101). Không model nào được train trên hộ này.</p>
+  <p class="meta">Mã nguồn: <code>nilmformer-experiment/</code> · Model gốc: <a href="https://github.com/adrienpetralia/NILMFormer">adrienpetralia/NILMFormer</a> (Apache-2.0) · Paper: <a href="https://arxiv.org/abs/2506.05880">arXiv:2506.05880</a></p>
+  <nav class="toc" aria-label="Mục lục">
+    <a href="#tomtat"><span>1</span>Tóm tắt</a>
+    <a href="#mohinh"><span>2</span>Mô hình NILMFormer</a>
+    <a href="#dataset"><span>3</span>Bộ dữ liệu</a>
+    <a href="#pipeline"><span>4</span>Training pipeline</a>
+    <a href="#ketqua"><span>5</span>Kết quả train và so sánh paper</a>
+    <a href="#ho101"><span>6</span>Thử nghiệm trên hộ Plegma 101</a>
+    <a href="#hanche"><span>7</span>Hạn chế và hướng tiếp theo</a>
+    <a href="#chaylai"><span>8</span>Chạy lại</a>
+  </nav>
+</header>
+
+<section id="tomtat">
+  <div class="eyebrow">1 · Tóm tắt</div>
+  <h2>Tóm tắt</h2>
+  <div class="figs">
+    <div class="fig"><b>8</b><small>model thiết bị: 4 theo paper, 4 bổ sung (tủ lạnh, máy sấy, điều hoà, bình nóng lạnh)</small></div>
+    <div class="fig"><b>3</b><small>bộ dữ liệu: REFIT (Anh), Plegma (Hy Lạp), PRECON (Pakistan). Plegma và PRECON chỉ dùng để train</small></div>
+    <div class="fig"><b>0.385M</b><small>tham số mỗi model (đo được: 383,283), khớp với paper</small></div>
+    <div class="fig"><b>7 ms</b><small>suy luận 256 phút dữ liệu trên GPU (RTX 5880 Ada)</small></div>
+  </div>
+  <ul class="prose">
+    <li><b>Đúng protocol paper:</b> 50 epoch, early stopping 10, ReduceLROnPlateau 5, batch 64, lr 1e-4, MSE, dữ liệu 1 phút, cửa sổ 128. Trên REFIT, Kettle và Dishwasher có MR tốt hơn paper. Microwave và WashingMachine kém hơn (mục 5).</li>
+    <li><b>Thiết bị REFIT không có:</b> điều hoà (AC) lấy từ Plegma và PRECON, bình nóng lạnh lấy từ Plegma. Hai bộ này được chuyển về đúng định dạng REFIT nên pipeline gốc vẫn dùng được.</li>
+    <li><b>Hộ phục vụ backend: Plegma 101.</b> Hộ này có 427 ngày dữ liệu và 4 thiết bị có đo riêng, chiếm khoảng 81% điện năng. Kết quả F1: bình nóng lạnh 0.985, điều hoà 0.809, tủ lạnh 0.801, máy giặt 0.468.</li>
+    <li><b>Điểm yếu chính:</b> model đoán thấp năng lượng điều hoà (dự đoán bằng 59% thực tế), nhất là khi điều hoà chạy sưởi mùa đông. Phần thiếu này bị dồn vào mục "Khác" (mục 6).</li>
+  </ul>
+</section>
+
+<section id="mohinh">
+  <div class="eyebrow">2 · Mô hình</div>
+  <h2>Mô hình NILMFormer</h2>
+  <p class="prose"><b>Bài toán NILM:</b> từ một công tơ tổng (công suất cả nhà, 1 điểm/phút), ước lượng công suất của từng thiết bị theo thời gian. NILMFormer là mô hình <i>sequence-to-sequence</i>: vào là 128 phút công suất tổng, ra là 128 phút công suất của một thiết bị. Mỗi thiết bị có một model riêng.</p>
+  <p class="prose">NILMFormer (Petralia và cộng sự, KDD 2025) là một Transformer nhỏ. Nó xử lý được hai vấn đề hay gặp khi đem model NILM sang nhà khác: mức công suất nền khác nhau, và thói quen dùng điện theo giờ trong ngày.</p>
+  <pre class="mermaid">
+flowchart LR
+  A["Công suất tổng<br/>128 phút"] --> N["Chuẩn hoá theo cửa sổ<br/>(trừ mean, chia std)"]
+  N --> E["Dilated Conv<br/>giãn 1, 2, 4, 8<br/>→ 72 kênh"]
+  T["Thời điểm<br/>phút, giờ, thứ, tháng<br/>(sin/cos)"] --> P["Chiếu Conv1x1<br/>→ 24 kênh"]
+  N -. "mean, std" .-> S["Token thống kê"]
+  E --> C["Ghép 96 kênh<br/>+ token thống kê"]
+  P --> C
+  S --> C
+  C --> X["3 lớp Transformer encoder<br/>8 head, d_model 96"]
+  X --> H["Conv head<br/>→ 1 kênh"]
+  X -. "token thống kê" .-> R["Khôi phục biên độ<br/>(mean, std đầu ra)"]
+  H --> R
+  R --> Y["Công suất thiết bị<br/>128 phút"]
+  </pre>
+  <div class="cols">
+    <div class="card">
+      <h3>Chuẩn hoá theo cửa sổ + token thống kê</h3>
+      <p>Mỗi cửa sổ được trừ trung bình và chia độ lệch chuẩn, nên model học <i>hình dạng</i> tín hiệu chứ không phụ thuộc mức nền của từng nhà. Mean và std được đưa vào như một token riêng. Sau encoder, token này được chiếu ra mean và std của <i>đầu ra</i> để khôi phục biên độ watt. Cách này khác RevIN, vốn trả nguyên thống kê đầu vào về đầu ra.</p>
+    </div>
+    <div class="card">
+      <h3>Mã hoá thời gian (TimeRPE)</h3>
+      <p>Phút, giờ, thứ trong tuần và tháng của từng điểm được mã hoá bằng sin/cos, tổng cộng 8 kênh. Nhờ đó model biết thời điểm trong ngày, ví dụ ấm nước hay dùng buổi sáng, điều hoà hay chạy chiều tối. Paper dùng cách này thay cho positional encoding cố định.</p>
+    </div>
+    <div class="card">
+      <h3>Encoder và head</h3>
+      <p>Khối Dilated Conv (kernel 3, giãn 1/2/4/8) tạo embedding cục bộ. Ba lớp Transformer encoder (8 head, FFN ×4, dropout 0.2) dùng attention có che đường chéo: mỗi điểm không tự nhìn chính nó. Cuối cùng một Conv1d (kernel 3) cho ra chuỗi công suất.</p>
+    </div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Siêu tham số</th><th>Giá trị</th><th>Nguồn</th></tr></thead>
+    <tbody>
+      <tr><td>Cửa sổ / tần số mẫu</td><td class="mono">128 bước · 1 phút</td><td>paper (REFIT, w = 128)</td></tr>
+      <tr><td>d_model / lớp encoder / head</td><td class="mono">96 / 3 / 8</td><td><code>configs/models.yaml</code> của repo gốc</td></tr>
+      <tr><td>Kênh vào</td><td class="mono">1 công suất + 8 thời gian</td><td>minute, hour, dow, month × sin/cos</td></tr>
+      <tr><td>Số tham số</td><td class="mono">383,283</td><td>paper ghi 0.385M · kiểm tra trong <code>make validate</code></td></tr>
+      <tr><td>Hàm mất mát / optimizer</td><td class="mono">MSE · AdamW (wd = 0), lr 1e-4</td><td>paper</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="dataset">
+  <div class="eyebrow">3 · Dữ liệu</div>
+  <h2>Bộ dữ liệu</h2>
+  <p class="prose">Paper chỉ dùng REFIT và UK-DALE (Anh). Hai bộ này không có điều hoà hay bình nóng lạnh, là những thiết bị tốn điện nhất ở hộ Việt Nam. Chúng tôi tìm nhưng không có bộ dữ liệu công khai nào của Việt Nam hay Đông Nam Á đo riêng điều hoà. Vì vậy chúng tôi lấy thêm hai bộ có khí hậu nóng và điện 230 V. <b>Plegma và PRECON chỉ dùng để train.</b> Backend chỉ trả kết quả của một hộ (mục 6).</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Bộ</th><th>Nơi · thời gian</th><th class="n">Số nhà</th><th>Lấy mẫu · cách đo</th><th>Mã nhà trong pipeline</th><th>Giấy phép</th></tr></thead>
+    <tbody>
+      <tr><td><b>REFIT</b><span class="sub">Univ. Strathclyde</span></td><td>Loughborough, Anh · 2013–2015</td><td class="n">20</td><td>~8 s · ổ cắm từng thiết bị (9 kênh/nhà)</td><td class="mono">1–21</td><td>CC BY 4.0</td></tr>
+      <tr><td><b>Plegma</b><span class="sub">doi:10.15129/3b01a6c6…</span></td><td>Hy Lạp · 2022–2023</td><td class="n">13</td><td>10 s · ổ cắm từng thiết bị</td><td class="mono">101–113</td><td>CC BY 4.0</td></tr>
+      <tr><td><b>PRECON</b><span class="sub">LUMS, Lahore</span></td><td>Lahore, Pakistan · 06/2018–05/2019</td><td class="n">42</td><td>1 phút · theo mạch phòng</td><td class="mono">201–242</td><td class="warn">Không ghi giấy phép</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Đưa Plegma và PRECON về định dạng REFIT</h3>
+  <ul class="prose">
+    <li><code>pipeline/convert.py</code> ghi mỗi nhà thành <code>CLEAN_House&lt;id&gt;.csv</code> (Time, Unix, Aggregate, các kênh thiết bị, Issues, đơn vị W) và một file <code>HOUSES_Labels</code>. Builder REFIT gốc đọc được nguyên trạng, không phải sửa code vendored.</li>
+    <li>Nhà có nhiều máy cùng loại (nhiều điều hoà, 2 tủ lạnh) thì cộng lại thành một kênh. Chỉ cần một máy thiếu số liệu thì phút đó bị đánh dấu thiếu.</li>
+    <li>PRECON: đổi kW sang W. Bỏ kênh <code>AC_UPS</code> vì kênh này gộp điều hoà với tải UPS. Chỉ giữ nhà mà <b>mọi</b> điều hoà đều được đo (so với <code>No_of_ACs</code> trong Metadata), nếu không thì máy không đo sẽ nằm lẫn trong công suất tổng mà không có nhãn. Kết quả còn 6 nhà: 201, 208, 211, 214, 223, 232.</li>
+    <li>Phút nào công suất tổng thiếu hoặc ≤ 0 (mất điện, logger tắt) được đánh dấu là <code>Issues</code>.</li>
+  </ul>
+  <h3>Chia nhà train / valid / test theo thiết bị</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Model</th><th>Nhà train</th><th class="n">Valid</th><th class="n">Test</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Kettle</td><td>REFIT 3, 4, 5, 6, 7, 12, 13, 15, 19, 20 <span class="sub">10 nhà</span></td><td class="n">9</td><td class="n">2</td><td>danh sách nhà theo paper</td></tr>
+      <tr><td>Microwave</td><td>REFIT 3, 4, 6, 8, 10, 12, 13, 15, 17, 18, 19, 20 <span class="sub">12 nhà</span></td><td class="n">9</td><td class="n">2</td><td>theo paper</td></tr>
+      <tr><td>Dishwasher</td><td>REFIT 1, 3, 5, 6, 7, 10, 13, 15, 16, 18, 20 <span class="sub">11 nhà</span></td><td class="n">9</td><td class="n">2</td><td>theo paper</td></tr>
+      <tr><td>WashingMachine</td><td>REFIT 15 nhà (theo paper) + Plegma 11 nhà <span class="sub">26 nhà</span></td><td class="n">103</td><td class="n">101</td><td>bản chỉ REFIT vẫn giữ trong <code>models/paper_refit/</code></td></tr>
+      <tr><td>Fridge</td><td>REFIT 2, 5, 9, 12, 15, 19, 21 + Plegma 11 nhà <span class="sub">18 nhà</span></td><td class="n">103</td><td class="n">101</td><td>REFIT: chỉ lấy nhà có đúng 1 tủ chính</td></tr>
+      <tr><td>TumbleDryer</td><td>REFIT 1, 3, 5, 7, 8, 20, 21 <span class="sub">7 nhà</span></td><td class="n">13</td><td class="n">15</td><td>bỏ máy giặt-sấy liền (9, 18)</td></tr>
+      <tr><td>AC</td><td>Plegma 9 nhà + PRECON 201, 208, 211, 214, 223, 232 <span class="sub">15 nhà</span></td><td class="n">103</td><td class="n">101</td><td>tổng mọi máy điều hoà trong nhà</td></tr>
+      <tr><td>WaterHeater</td><td>Plegma 10 nhà <span class="sub">bình nóng lạnh ("boiler")</span></td><td class="n">103</td><td class="n">101</td><td>12/13 nhà Plegma có bình</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">Nhà test 101 bị loại khỏi train của mọi model. Nhà valid chỉ dùng cho early stopping và chọn ngưỡng hậu xử lý.</p>
+</section>
+
+<section id="pipeline">
+  <div class="eyebrow">4 · Pipeline</div>
+  <h2>Training pipeline</h2>
+  <pre class="mermaid">
+flowchart LR
+  R1["REFIT CSV"] --> B
+  R2["Plegma 10 s"] --> CV["convert.py<br/>→ layout REFIT"]
+  R3["PRECON 1 phút"] --> CV
+  CV --> B["PipelineBuilder<br/>resample, ngưỡng ON,<br/>cửa sổ 128"]
+  B --> K[("cache<br/>theo nhà")]
+  K --> TR["train.py<br/>50 epoch, ES 10"]
+  TR --> M["model .pt<br/>+ scaler + config"]
+  M --> PR["predict.py<br/>cửa sổ chồng"]
+  PR --> RAW[("dự đoán thô<br/>.parquet")]
+  RAW --> PP["postprocess.py<br/>ngưỡng, gain,<br/>tổng ≤ công tơ"]
+  PP --> OUT["CSV hộ 101"] --> BE["Backend<br/>TimescaleDB"]
+  M --> API["Inference API<br/>POST /disaggregate"]
+  </pre>
+  <div class="cols">
+    <div class="card">
+      <h3>Tiền xử lý</h3>
+      <ul>
+        <li>Đưa về lưới 10 s, chỉ điền tiếp các khoảng trống ≤ 90 s, rồi lấy trung bình về 1 phút.</li>
+        <li>Giá trị &lt; 5 W đặt về 0, cắt ở 10 kW. Trạng thái bật/tắt tính theo ngưỡng min/max của từng thiết bị.</li>
+        <li>Chia cửa sổ 128 phút không chồng nhau. Scaler chỉ fit trên nhà train.</li>
+        <li>Mỗi nhà dùng tên nhãn riêng (ví dụ <i>Fridge-Freezer</i>), <code>PipelineBuilder</code> đổi về tên chung.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Huấn luyện</h3>
+      <ul>
+        <li>Tối đa 50 epoch. Dừng sớm nếu loss valid không giảm sau 10 epoch, rồi lấy lại model tốt nhất. Giảm lr nếu loss không giảm sau 5 epoch.</li>
+        <li>Batch 64, train loader xáo trộn. Train song song nhiều model trên 1 GPU RTX 5880 Ada 48 GB, mỗi model 7–23 phút.</li>
+        <li>Mỗi model là một file <code>.pt</code> chứa đủ trọng số, scaler và cấu hình để suy luận. Hỗ trợ train tiếp bằng <code>--resume</code>.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Hậu xử lý (không train lại)</h3>
+      <ul>
+        <li>Làm mượt bằng median 3 phút, áp ngưỡng bật, bỏ các lần bật ngắn hơn số phút tối thiểu.</li>
+        <li><b>Gain:</b> model train bằng MSE có xu hướng đoán mức ON thấp. Ta nhân với tỉ lệ năng lượng thật/dự đoán đo trên nhà valid, giới hạn trong 0.5–3.</li>
+        <li>Tổng các thiết bị không vượt công tơ. Phần còn lại gán cho "Khác".</li>
+        <li><b>Inventory:</b> chỉ chạy model cho thiết bị mà hộ thực sự có.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note"><b>Các bước kiểm tra trước khi train dài:</b> <code>make validate</code> chạy toàn bộ chuỗi trên tập nhỏ trong khoảng 1 phút, gồm 13 bước: GPU, file dữ liệu, cấu hình đúng paper, số tham số, đặc trưng thời gian, nhãn thiết bị bổ sung, train 1 epoch, resume, predict, postprocess, độ trễ và API. Lần chạy gần nhất đạt 13/13.</div>
+</section>
+
+<section id="ketqua">
+  <div class="eyebrow">5 · Kết quả train</div>
+  <h2>Kết quả train và so sánh với paper</h2>
+  <h3>Quá trình huấn luyện</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Model</th><th>Dữ liệu train</th><th class="n">Epoch chạy</th><th class="n">Epoch tốt nhất</th><th class="n">Loss valid tốt nhất</th><th class="n">Thời gian</th></tr></thead>
+    <tbody>
+      <tr><td>Kettle</td><td>REFIT</td><td class="n">21</td><td class="n">11</td><td class="n">1.17e-4</td><td class="n">17.1 phút</td></tr>
+      <tr><td>Microwave</td><td>REFIT</td><td class="n">13</td><td class="n">3</td><td class="n">1.6e-5</td><td class="n">13.2 phút</td></tr>
+      <tr><td>Dishwasher</td><td>REFIT</td><td class="n">15</td><td class="n">5</td><td class="n">4.21e-4</td><td class="n">14.1 phút</td></tr>
+      <tr><td>WashingMachine</td><td>REFIT + Plegma</td><td class="n">20</td><td class="n">10</td><td class="n">6.0e-5</td><td class="n">23.3 phút</td></tr>
+      <tr><td>Fridge</td><td>REFIT + Plegma</td><td class="n">29</td><td class="n">19</td><td class="n">3.9e-6</td><td class="n">21.0 phút</td></tr>
+      <tr><td>TumbleDryer</td><td>REFIT</td><td class="n">13</td><td class="n">1</td><td class="n">8.29e-4</td><td class="n">6.6 phút</td></tr>
+      <tr><td>AC</td><td>Plegma + PRECON</td><td class="n">15</td><td class="n">5</td><td class="n">2.99e-4</td><td class="n">9.6 phút</td></tr>
+      <tr><td>WaterHeater</td><td>Plegma</td><td class="n">22</td><td class="n">12</td><td class="n">3.12e-4</td><td class="n">8.1 phút</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">Mọi model đều dừng sớm trước 50 epoch. Loss là MSE trên dữ liệu đã chuẩn hoá, nên không so được giữa các thiết bị. Microwave, TumbleDryer, AC và Dishwasher đạt tốt nhất ở epoch 1–5: loss valid dao động mạnh và bắt đầu overfit sớm, vì nhà valid chỉ có một. Thời gian là thời gian train thuần, không tính lúc nạp dữ liệu.</p>
+
+  <h3>So sánh với paper trên REFIT (cửa sổ 128, 1 phút)</h3>
+  <p class="prose">Paper báo cáo hai chỉ số trên dự đoán <b>thô</b> (không hậu xử lý). MAE là sai số tuyệt đối trung bình, tính bằng W. MR (Matching Ratio) = Σ min(ŷ, y) / Σ max(ŷ, y), từ 0 đến 1, càng cao càng tốt. Bảng dưới tính đúng hai chỉ số đó trên dự đoán thô. Cột F1 là kết quả sau hậu xử lý, paper không báo cáo F1.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Thiết bị</th><th class="n">MAE paper</th><th class="n">MAE của ta</th><th class="n">MR paper</th><th class="n">MR của ta</th><th class="n">F1 (sau hậu xử lý)</th></tr></thead>
+    <tbody>
+      <tr><td>Kettle</td><td class="n">9.3</td><td class="n worse">10.3</td><td class="n">0.522</td><td class="n better">0.631</td><td class="n">0.835</td></tr>
+      <tr><td>Microwave</td><td class="n">5.7</td><td class="n better">4.9</td><td class="n">0.110</td><td class="n worse">0.071</td><td class="n">0.236</td></tr>
+      <tr><td>Dishwasher</td><td class="n">29.1</td><td class="n worse">42.8</td><td class="n">0.332</td><td class="n better">0.475</td><td class="n">0.802</td></tr>
+      <tr><td>WashingMachine <span class="sub">bản chỉ REFIT</span></td><td class="n">18.9</td><td class="n worse">20.0</td><td class="n">0.250</td><td class="n worse">0.115</td><td class="n">0.443</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note warnbox"><b>Hai kết quả không so được trực tiếp:</b> paper lấy trung bình 2 nhà test × 3 seed. Ta có 1 nhà test (REFIT 2), 1 nhà valid (9) và 1 seed. MAE phụ thuộc mạnh vào mức dùng thiết bị của nhà test: nhà 2 dùng máy rửa bát 611 kWh trong ~617 ngày, nên MAE cao dù MR tốt hơn. MR ít phụ thuộc vào quy mô hơn và là chỉ số nên so. Theo MR: Kettle và Dishwasher vượt paper, Microwave và WashingMachine kém hơn. Lò vi sóng khó với mọi model vì tải ngắn và nhỏ; paper cũng chỉ đạt MR 0.11.</div>
+
+  <h3>Thiết bị bổ sung (ngoài paper)</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Model</th><th>Nhà test</th><th class="n">MAE thô</th><th class="n">MR thô</th><th class="n">MR sau HXL</th><th class="n">F1</th><th class="n">Precision</th><th class="n">Recall</th><th class="n">Năng lượng thật / dự đoán</th></tr></thead>
+    <tbody>
+      <tr><td>Fridge <span class="sub">chỉ REFIT</span></td><td>REFIT 2</td><td class="n">22.3</td><td class="n">0.521</td><td class="n">0.522</td><td class="n">0.768</td><td class="n">0.762</td><td class="n">0.774</td><td class="n">372 / 294 kWh</td></tr>
+      <tr><td>TumbleDryer</td><td>REFIT 15</td><td class="n">10.0</td><td class="n">0.353</td><td class="n">0.475</td><td class="n">0.813</td><td class="n">0.692</td><td class="n">0.985</td><td class="n">121 / 72 kWh</td></tr>
+      <tr><td>WaterHeater</td><td>Plegma 101</td><td class="n">7.8</td><td class="n">0.886</td><td class="n">0.892</td><td class="n">0.985</td><td class="n">0.981</td><td class="n">0.988</td><td class="n">638 / 602 kWh</td></tr>
+      <tr><td>AC</td><td>Plegma 101</td><td class="n">89.7</td><td class="n">0.426</td><td class="n">0.529</td><td class="n">0.809</td><td class="n">0.939</td><td class="n">0.711</td><td class="n">1446 / 857 kWh</td></tr>
+      <tr><td>Fridge <span class="sub">REFIT + Plegma</span></td><td>Plegma 101</td><td class="n">17.2</td><td class="n">0.612</td><td class="n">0.525</td><td class="n">0.801</td><td class="n">0.880</td><td class="n">0.735</td><td class="n">417 / 241 kWh</td></tr>
+      <tr><td>WashingMachine <span class="sub">REFIT + Plegma</span></td><td>Plegma 101</td><td class="n">4.7</td><td class="n">0.229</td><td class="n">0.329</td><td class="n">0.468</td><td class="n">0.409</td><td class="n">0.546</td><td class="n">39 / 32 kWh</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">F1 tính trên trạng thái bật/tắt từng phút. "Thật bật" là công suất đo ≥ ngưỡng của thiết bị (AC 100 W, Fridge 50 W, WaterHeater 500 W, máy giặt và máy sấy 300 W). "Dự đoán bật" là công suất sau hậu xử lý &gt; 0. Thông thường hậu xử lý tăng MR. Riêng Fridge trên nhà 101 thì giảm (0.612 xuống 0.525), vì ngưỡng và độ dài bật tối thiểu cắt bớt các chu kỳ máy nén ngắn.</p>
+
+  <h3>Những gì thêm dữ liệu khác mang lại</h3>
+  <div class="cols">
+    <div class="card">
+      <h3>Thêm Plegma cho Fridge và WashingMachine</h3>
+      <p>Hai model được so với cùng một cách hậu xử lý trên nhà 101. Máy giặt: thêm 11 nhà Plegma nâng F1 từ 0.333 lên 0.468 và giảm SAE từ 0.27 xuống 0.16. Tủ lạnh: bản chỉ REFIT có F1 <b>cao hơn</b> (0.875 so với 0.801) nhưng MR thấp hơn (0.461 so với 0.525). Như vậy với tủ lạnh, Plegma cải thiện ước lượng năng lượng chứ không cải thiện việc phát hiện. Trước đây ta tưởng bản chỉ REFIT rất kém (F1 0.108), nhưng thực ra nguyên nhân là ngưỡng, không phải dữ liệu (thẻ bên cạnh).</p>
+    </div>
+    <div class="card">
+      <h3>Ngưỡng cố định cho tủ lạnh</h3>
+      <p>Ngưỡng tối ưu F1 chọn trên nhà valid 103 là 92 W, vì tủ nhà đó chạy khoảng 131 W. Ngưỡng này cắt mất tủ của nhà 101, chỉ chạy khoảng 81 W, làm F1 còn 0.148. Với tải chạy theo chu kỳ, ta giữ ngưỡng cố định 20 W và F1 lên 0.801.</p>
+    </div>
+    <div class="card">
+      <h3>Danh mục thiết bị theo hộ</h3>
+      <p>Chạy model máy sấy trên nhà REFIT 2, vốn không có máy sấy, sinh ra 120 kWh ảo. Vì vậy pipeline chỉ chạy model cho thiết bị mà hộ có, theo <code>HOUSES_Labels</code> hoặc <code>NILM_APPS</code> của API.</p>
+    </div>
+  </div>
+</section>
+
+<section id="ho101">
+  <div class="eyebrow">6 · Thử nghiệm hộ gia đình</div>
+  <h2>Thử nghiệm trên hộ Plegma 101</h2>
+  <p class="prose">Để dữ liệu thống nhất, backend chỉ trả kết quả suy luận của một hộ. Chúng tôi chọn <b>Plegma 101</b> vì bốn lý do:</p>
+  <ul class="prose">
+    <li>Không model nào được train trên hộ này.</li>
+    <li>Dữ liệu dài nhất: 15/07/2022–30/09/2023.</li>
+    <li>Ít lỗi: 3.6% số phút thiếu công suất tổng.</li>
+    <li>Có đủ điều hoà, bình nóng lạnh, tủ lạnh và máy giặt, gần với cơ cấu tiêu thụ hộ Việt Nam.</li>
+  </ul>
+  <p class="prose">So với REFIT 2, F1 trung bình đạt 0.77 so với 0.62. Ngưỡng và gain được chọn trên nhà valid 103, không chọn trên 101.</p>
+
+  <div class="figs">
+    <div class="fig"><b>3,135 kWh</b><small>tổng điện năng · 427 ngày có số liệu</small></div>
+    <div class="fig"><b>~81%</b><small>điện năng do 4 thiết bị có đo riêng</small></div>
+    <div class="fig"><b>0.77</b><small>F1 trung bình của 4 thiết bị</small></div>
+    <div class="fig"><b>69%</b><small>năng lượng 4 thiết bị được tìm ra (1,754 / 2,540 kWh)</small></div>
+  </div>
+
+  <h3>Cơ cấu tiêu thụ: thực tế so với mô hình</h3>
+  <div class="stack" id="mix"></div>
+  <p class="caption">Mô hình tìm gần đủ bình nóng lạnh và máy giặt. Phần điều hoà và tủ lạnh bị bỏ sót (~750 kWh) dồn vào "Khác", nên "Khác" chiếm 44% so với 19% thực tế. Mọi tỉ lệ tính trên tổng 3,135 kWh.</p>
+
+  <h3>Chỉ số chi tiết</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Thiết bị</th><th class="n">F1</th><th class="n">Precision</th><th class="n">Recall</th><th class="n">MAE (W)</th><th class="n">RMSE (W)</th><th class="n">SAE</th><th class="n">NDE</th><th class="n">MR</th><th class="n">Số phút bật thật</th><th>Đánh giá</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot c-wh"></span>Bình nóng lạnh</td><td class="n">0.985</td><td class="n">0.981</td><td class="n">0.988</td><td class="n">7.0</td><td class="n">88.1</td><td class="n">0.057</td><td class="n">0.030</td><td class="n">0.892</td><td class="n">9,537</td><td><span class="pill good">rất tốt</span></td></tr>
+      <tr><td><span class="dot c-ac"></span>Điều hoà</td><td class="n">0.809</td><td class="n">0.939</td><td class="n">0.711</td><td class="n">73.2</td><td class="n">246.5</td><td class="n">0.407</td><td class="n">0.313</td><td class="n">0.529</td><td class="n">75,625</td><td><span class="pill warn">thiếu biên độ</span></td></tr>
+      <tr><td><span class="dot c-fr"></span>Tủ lạnh</td><td class="n">0.801</td><td class="n">0.880</td><td class="n">0.735</td><td class="n">20.4</td><td class="n">32.6</td><td class="n">0.422</td><td class="n">0.319</td><td class="n">0.525</td><td class="n">309,536</td><td><span class="pill warn">thiếu năng lượng</span></td></tr>
+      <tr><td><span class="dot c-wm"></span>Máy giặt</td><td class="n">0.468</td><td class="n">0.409</td><td class="n">0.546</td><td class="n">3.5</td><td class="n">65.0</td><td class="n">0.161</td><td class="n">0.632</td><td class="n">0.329</td><td class="n">1,239</td><td><span class="pill bad">yếu, ít ảnh hưởng</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">SAE = |E dự đoán − E thật| / E thật, tính trên toàn kỳ. NDE = Σ(y − ŷ)² / Σy². MR tính sau hậu xử lý. Máy giặt chỉ chiếm 1.2% điện năng: sai số năng lượng nhỏ (16%) nhưng việc nhận ra từng lần giặt còn yếu.</p>
+
+  <h3>F1 theo quý</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Thiết bị</th><th class="n">Q3/2022</th><th class="n">Q4/2022</th><th class="n">Q1/2023</th><th class="n">Q2/2023</th><th class="n">Q3/2023</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot c-wh"></span>Bình nóng lạnh</td><td class="n">0.985</td><td class="n">0.981</td><td class="n">0.987</td><td class="n">0.978</td><td class="n">0.969</td></tr>
+      <tr><td><span class="dot c-ac"></span>Điều hoà</td><td class="n">0.784</td><td class="n bad">0.476</td><td class="n">0.699</td><td class="n">0.688</td><td class="n good">0.874</td></tr>
+      <tr><td><span class="dot c-fr"></span>Tủ lạnh</td><td class="n bad">0.497</td><td class="n">0.863</td><td class="n">0.697</td><td class="n good">0.957</td><td class="n">0.916</td></tr>
+      <tr><td><span class="dot c-wm"></span>Máy giặt</td><td class="n">0.478</td><td class="n">0.390</td><td class="n">0.597</td><td class="n">0.488</td><td class="n">0.260</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">Q3/2022 chỉ tính từ 15/07/2022.</p>
+
+  <h3>Điện năng theo tháng: thật và dự đoán</h3>
+  <div class="chart">
+    <div class="legend"><span><i style="background: var(--ink); opacity: .78"></i>Thật</span><span><i style="background: var(--accent); opacity: .5"></i>Dự đoán (màu theo thiết bị)</span></div>
+    <svg id="monthly" viewBox="0 0 900 560" role="img" aria-label="Điện năng theo tháng của điều hoà, bình nóng lạnh và tủ lạnh, thật và dự đoán"></svg>
+  </div>
+  <p class="caption">Tháng 7/2022 chỉ có 15.5 ngày. Đơn vị kWh/tháng.</p>
+
+  <h3>Một ngày mùa hè: 12/07/2023</h3>
+  <div class="chart">
+    <div class="legend"><span><i style="background: var(--ot); opacity: .35"></i>Công suất tổng</span><span><i style="background: var(--ink); opacity: .25"></i>Thật</span><span><i style="background: var(--accent); height: 3px"></i>Dự đoán</span><span><i style="background: var(--gap)"></i>Thiếu số liệu</span></div>
+    <svg id="day" viewBox="0 0 900 470" role="img" aria-label="Công suất từng thiết bị ngày 12/07/2023, trung bình 10 phút"></svg>
+  </div>
+  <p class="caption">Trung bình 10 phút. Hôm đó tổng 16.0 kWh, điều hoà thật 11.6 kWh và dự đoán 9.7 kWh (84%). Bình nóng lạnh: 1 lần bật lúc 9:10, phát hiện đúng (1.00 so với 0.67 kWh). Sau quãng thiếu số liệu 18:20–20:20, model bỏ sót điều hoà khoảng 1 giờ 10 phút (20:30–21:40). Nhiều khả năng các cửa sổ chạm vào quãng thiếu không đủ ngữ cảnh.</p>
+
+  <h3>Nhận xét</h3>
+  <div class="cols">
+    <div class="card">
+      <h3><span class="dot c-wh"></span>Bình nóng lạnh: gần như chính xác</h3>
+      <p>Đây là tải điện trở lớn (2.5–3.4 kW) dạng xung vuông, rất dễ nhận ra trên công tơ tổng. Năng lượng hằng tháng sai 1–10%. F1 ổn định quanh 0.97–0.99 ở mọi quý.</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot c-ac"></span>Điều hoà: đúng lúc bật, thiếu công suất</h3>
+      <p>Precision 0.94 nghĩa là hầu như không báo nhầm. Nhưng mức công suất bị đoán thấp. Mùa hè đoán đủ: tháng 7/2023 đạt 360/429 kWh (84%). Mùa đông thiếu nhiều: tháng 1/2023 chỉ 59/166 kWh (36%) và F1 Q4/2022 còn 0.476. Mùa đông điều hoà chạy sưởi, trong khi dữ liệu train phần lớn là chế độ làm lạnh, và PRECON (Pakistan) chỉ có làm lạnh. Với hộ Việt Nam (chủ yếu làm lạnh), kết quả mùa hè là phần đáng tin hơn.</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot c-fr"></span>Tủ lạnh: 68 ngày không thể tách được</h3>
+      <p>Có 68 ngày (7–9/2022 và 2/2023) tủ lạnh kéo đều khoảng 72 W suốt 24 giờ, không có chu kỳ đóng ngắt máy nén. Tải không đổi như vậy không tạo ra cạnh bật/tắt nào trên công tơ tổng, nên trông giống tải nền, và không model NILM nào tách được. Có thể là lỗi xả đá hoặc ổ đo cắm chung thiết bị khác, dữ liệu không cho biết. Loại các ngày này ra thì F1 đạt 0.913, SAE 0.25, và tương quan năng lượng theo ngày tăng từ 0.13 lên 0.90.</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot c-wm"></span>Máy giặt: yếu nhưng ít ảnh hưởng</h3>
+      <p>Hộ chỉ giặt khoảng 39 kWh trong 14 tháng. Chu trình giặt (motor và gia nhiệt) dễ lẫn với các tải khác cùng mức công suất. Tổng năng lượng chỉ sai 16%, nhưng thời điểm từng lần giặt còn nhiều nhầm lẫn: precision 0.41.</p>
+    </div>
+  </div>
+</section>
+
+<section id="hanche">
+  <div class="eyebrow">7 · Hạn chế</div>
+  <h2>Hạn chế và hướng tiếp theo</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>Hạn chế</h3>
+      <ul>
+        <li>1 seed, 1 nhà test và 1 nhà valid cho mỗi thiết bị, nên kết quả dao động theo nhà được chọn. Paper dùng 3 seed và 2 nhà test.</li>
+        <li>Chưa có dữ liệu Việt Nam. Khí hậu và loại thiết bị của Hy Lạp và Pakistan chỉ gần đúng với Việt Nam.</li>
+        <li>Điều hoà bị đoán thấp công suất, nhất là chế độ sưởi. Gain là một hệ số chung cho cả năm.</li>
+        <li>Lò vi sóng và máy giặt còn yếu, giống paper.</li>
+        <li>PRECON không ghi giấy phép. Chỉ dùng cho nghiên cứu, cần hỏi tác giả trước khi dùng thương mại.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Đề xuất</h3>
+      <ul>
+        <li>Thu dữ liệu có nhãn từ vài hộ Việt Nam (ổ cắm đo riêng cho điều hoà, bình nóng lạnh, tủ lạnh) rồi fine-tune model hiện có. Đây là cải thiện lớn nhất có thể làm.</li>
+        <li>Thử cửa sổ 256 hoặc 512 cho điều hoà, vì chu kỳ chạy dài hơn 128 phút. Hoặc thử loss tăng trọng số mức ON để giảm đoán thấp.</li>
+        <li>Train nhiều seed và lấy trung bình (ensemble) để ổn định kết quả.</li>
+        <li>Khi gọi API, điền các khoảng trống ngắn và gửi dữ liệu liên tục, tránh hiện tượng bỏ sót sau quãng thiếu số liệu.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="chaylai">
+  <div class="eyebrow">8 · Chạy lại</div>
+  <h2>Chạy lại</h2>
+  <pre class="cmd">cd nilmformer-experiment
+make build
+make convert        # Plegma + PRECON -&gt; layout REFIT
+make validate       # 13/13 PASS
+make train          # Kettle, Microwave, Dishwasher, WashingMachine
+make train-extra    # Fridge, TumbleDryer, AC, WaterHeater
+make all-outputs    # predict 101 &amp; 103 -&gt; tune trên 103 -&gt; postprocess 101
+make eval-app APP=TumbleDryer APP_TEST=15 APP_VALID=13
+make all-outputs TEST_HOUSE=2 VALID_HOUSE=9   # đánh giá model paper trên REFIT
+make paper-data     # mọi số liệu -&gt; paper/data/*.csv (GPU: chạy lại ablation REFIT-only)
+make paper-figures  # paper/figures/*.pdf + paper/tables/*.tex
+make paper          # paper/build/main.pdf (LaTeX, IEEE)</pre>
+  <p class="prose">Trên server dùng chung, các cổng được đổi qua file <code>.env</code>: inference API ở <code>18102</code> (<code>POST /disaggregate</code>), backend ở <code>18101</code> (<code>GET /api/v1/households/{id}/disaggregation</code>), TimescaleDB ở <code>15443</code>.</p>
+</section>
+
+<footer>WattPrint · NILMFormer experiment · số liệu lấy từ <code>artifacts/outputs/*_metrics.json</code>, <code>artifacts/train_*.log</code> và dự đoán thô trong <code>artifacts/predictions/</code>, ngày 01/10/2026.</footer>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const t = el("text", attrs, parent); t.textContent = s; return t; };
+
+  /* ---- consumption mix bars ---- */
+  const TOTAL = 3135.2;
+  const mixes = [
+    ["Thực tế", { ac: 1445.6, wh: 638.4, fr: 417.1, wm: 38.7 }],
+    ["Mô hình", { ac: 869.4, wh: 605.4, fr: 245.6, wm: 33.5 }],
+  ];
+  const names = { ac: "Điều hoà", wh: "Bình nóng lạnh", fr: "Tủ lạnh", wm: "Máy giặt", ot: "Khác" };
+  const mix = document.getElementById("mix");
+  mixes.forEach(([label, v]) => {
+    const parts = Object.assign({}, v, { ot: TOTAL - v.ac - v.wh - v.fr - v.wm });
+    const row = document.createElement("div"); row.className = "barrow";
+    const l = document.createElement("div"); l.textContent = label; row.appendChild(l);
+    const bar = document.createElement("div"); bar.className = "bar";
+    Object.entries(parts).forEach(([k, kwh]) => {
+      const s = document.createElement("span");
+      s.style.width = (100 * kwh / TOTAL) + "%"; s.style.background = `var(--${k})`;
+      s.title = `${names[k]}: ${Math.round(kwh)} kWh (${(100 * kwh / TOTAL).toFixed(1)}%)`;
+      bar.appendChild(s);
+    });
+    row.appendChild(bar); mix.appendChild(row);
+  });
+  const leg = document.createElement("div"); leg.className = "legend";
+  const pct = (k, i) => { const v = mixes[i][1]; const o = TOTAL - v.ac - v.wh - v.fr - v.wm; return (100 * (k === "ot" ? o : v[k]) / TOTAL).toFixed(0); };
+  ["ac", "wh", "fr", "wm", "ot"].forEach(k => {
+    const s = document.createElement("span");
+    s.innerHTML = `<i style="background: var(--${k})"></i>${names[k]} ${pct(k, 0)}% → ${pct(k, 1)}%`;
+    leg.appendChild(s);
+  });
+  mix.appendChild(leg);
+
+  /* ---- monthly energy (kWh) ---- */
+  const months = ["7/22","8/22","9/22","10/22","11/22","12/22","1/23","2/23","3/23","4/23","5/23","6/23","7/23","8/23","9/23"];
+  const M = {
+    ac: { name: "Điều hoà", max: 450, step: 150,
+      t: [65.2,28.4,108.2,0.4,17.9,24.9,166.3,116.4,72.6,8.5,0.4,62.2,429.3,248.9,95.8],
+      p: [62.9,23.0,52.6,3.1,4.5,7.4,59.4,47.2,17.6,0.5,3.6,43.1,360.1,151.6,32.8] },
+    wh: { name: "Bình nóng lạnh", max: 90, step: 30,
+      t: [3.3,6.6,45.9,80.1,59.0,32.0,85.0,76.6,84.0,15.6,39.9,27.4,19.5,21.7,41.8],
+      p: [2.7,4.8,43.8,79.2,58.5,30.2,78.0,70.2,82.7,15.3,37.3,27.1,18.3,19.4,37.9] },
+    fr: { name: "Tủ lạnh", max: 60, step: 20,
+      t: [26.2,51.7,33.7,16.1,14.8,14.2,15.2,32.2,19.8,21.1,25.3,35.2,36.2,43.1,32.2],
+      p: [4.9,3.3,19.2,15.2,12.5,11.5,11.3,6.1,13.6,15.2,18.2,24.9,28.5,35.4,25.9] },
+  };
+  (function monthly() {
+    const svg = document.getElementById("monthly");
+    const L = 56, R = 14, W = 900, PH = 140, GAP = 40, T0 = 22;
+    const cw = (W - L - R) / months.length;
+    Object.entries(M).forEach(([k, s], i) => {
+      const top = T0 + i * (PH + GAP), bottom = top + PH;
+      const y = v => bottom - PH * Math.min(v, s.max) / s.max;
+      txt(s.name, { x: L, y: top - 8, style: "fill: var(--ink); font-weight: 500; font-size: 12px" }, svg);
+      for (let v = 0; v <= s.max; v += s.step) {
+        el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), style: "stroke: var(--rule); stroke-width: 1" }, svg);
+        txt(String(v), { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, svg);
+      }
+      months.forEach((m, j) => {
+        const x0 = L + j * cw, bw = cw * 0.34;
+        el("rect", { x: x0 + cw * 0.14, y: y(s.t[j]), width: bw, height: bottom - y(s.t[j]), style: "fill: var(--ink); opacity: .78" }, svg)
+          .appendChild(Object.assign(document.createElementNS(NS, "title"), { textContent: `${m} thật ${s.t[j]} kWh` }));
+        el("rect", { x: x0 + cw * 0.14 + bw + 2, y: y(s.p[j]), width: bw, height: bottom - y(s.p[j]), style: `fill: var(--${k})` }, svg)
+          .appendChild(Object.assign(document.createElementNS(NS, "title"), { textContent: `${m} dự đoán ${s.p[j]} kWh` }));
+        if (i === 2) txt(m, { x: x0 + cw / 2, y: bottom + 16, "text-anchor": "middle" }, svg);
+      });
+    });
+  })();
+
+  /* ---- one day, 10-min means: [agg, AC_t, WH_t, FR_t, WM_t, AC_p, WH_p, FR_p, WM_p] ---- */
+  const D = [[953,885,0,0,0,459,0,0,0],[953,886,0,0,0,454,0,0,0],[1016,883,0,65,0,546,0,44,0],[1033,880,0,84,0,580,0,55,0],[1029,878,0,81,0,567,0,53,0],[1015,880,0,65,0,551,0,41,0],[949,881,0,0,0,581,0,13,0],[948,880,0,0,0,677,0,11,0],[1004,879,0,55,0,692,0,32,0],[1032,878,0,84,0,701,0,44,0],[352,170,0,81,0,128,0,41,0],[146,7,0,48,0,0,0,24,0],[93,0,0,0,0,0,0,0,0],[93,1,0,0,0,0,0,0,0],[163,1,0,69,0,0,0,60,0],[179,1,0,84,0,0,0,74,0],[177,1,0,81,0,0,0,73,0],[157,0,0,63,0,0,0,57,0],[93,0,0,0,0,0,0,0,0],[92,0,0,0,0,0,0,0,0],[146,0,0,53,0,0,0,48,0],[179,0,0,85,0,0,0,81,0],[176,0,0,82,0,0,0,79,0],[174,1,0,80,0,0,0,78,0],[107,0,0,15,0,0,0,14,0],[91,0,0,0,0,0,0,0,0],[107,0,0,16,0,0,0,13,0],[179,0,0,87,0,0,0,81,0],[175,0,0,83,0,0,0,76,0],[173,0,0,81,0,0,0,74,0],[211,56,0,65,0,0,0,59,0],[922,855,0,0,0,0,0,29,0],[95,10,0,0,0,0,0,0,0],[204,66,0,46,0,0,0,27,0],[1048,899,0,85,0,539,0,32,0],[1055,912,0,82,0,540,0,29,0],[679,512,0,80,0,276,0,33,0],[1008,921,0,26,0,459,0,27,0],[991,932,0,0,0,595,0,9,0],[999,939,0,0,0,629,0,0,0],[1098,942,0,83,0,763,0,57,0],[1093,948,0,83,0,785,0,53,0],[1087,946,0,81,0,787,0,52,0],[1057,950,0,48,0,729,0,33,0],[1008,951,0,0,0,696,0,4,0],[1011,954,0,0,0,936,0,19,0],[1070,959,0,53,0,1009,0,41,0],[1106,964,0,84,0,1056,0,51,0],[1129,964,0,81,0,1083,0,46,0],[1166,963,0,64,0,1111,0,55,0],[1091,966,0,0,0,1046,0,45,0],[1107,974,0,0,0,1063,0,43,0],[888,672,0,63,0,849,0,40,0],[239,9,0,84,0,206,0,33,0],[231,2,0,81,0,208,0,23,0],[3630,0,3399,74,0,1295,2304,31,0],[2648,0,2576,0,0,935,1689,23,0],[105,0,0,0,0,30,0,26,0],[720,532,0,40,0,582,0,50,0],[241,9,0,86,0,0,0,64,0],[867,627,0,82,0,733,0,59,0],[1432,1201,0,81,0,1377,0,55,0],[1396,1209,0,50,0,1344,0,53,0],[1329,1204,0,0,0,1290,0,39,0],[1324,1209,0,0,0,920,0,37,0],[1386,1203,0,70,0,1109,0,68,0],[1387,1193,0,84,0,1125,0,67,0],[1383,1192,0,82,0,1114,0,63,0],[1372,1187,0,81,0,1100,0,59,0],[1360,1182,0,81,0,1034,0,55,0],[1365,1182,0,81,0,1032,0,51,0],[1375,1188,0,81,0,1099,0,51,0],[1373,1182,0,81,0,1088,0,48,0],[1377,1187,0,81,0,1102,0,50,0],[1401,1189,0,81,0,1191,0,64,0],[1399,1187,0,81,0,1172,0,67,0],[1368,1186,0,80,0,1084,0,49,0],[609,440,0,80,0,488,0,34,0],[352,190,0,80,0,176,0,37,0],[1114,971,0,79,0,1100,0,14,0],[1139,1005,0,79,0,1117,0,23,0],[1122,1007,0,61,0,1103,0,20,0],[1054,1000,0,0,0,1054,0,0,0],[1053,999,0,0,0,993,0,0,0],[1059,994,0,10,0,986,0,6,0],[1139,996,0,87,0,1044,0,42,0],[1132,993,0,83,0,1039,0,40,0],[1127,989,0,81,0,1017,0,33,0],[607,436,0,80,0,469,0,36,0],[166,9,0,69,0,0,0,34,0],[91,0,0,0,0,0,0,0,0],[91,1,0,0,0,0,0,0,0],[148,0,0,57,0,0,0,36,0],[607,443,0,84,0,297,0,52,0],[1105,960,0,82,0,847,0,48,0],[1112,969,0,80,0,845,0,49,0],[1088,966,0,58,0,606,0,52,0],[1027,965,0,0,0,573,0,35,0],[1024,963,0,0,0,556,0,34,0],[1078,958,0,58,0,586,0,48,0],[676,502,0,84,0,194,0,40,0],[492,260,0,81,0,94,0,56,0],[236,7,0,80,0,0,0,70,0],[161,0,0,5,0,0,0,4,0],[156,1,0,0,0,0,0,0,0],[179,1,0,24,0,0,0,18,0],[242,0,0,86,0,0,0,73,0],[240,0,0,83,0,0,0,62,0],[238,0,0,81,0,0,0,61,0],null,null,null,null,null,null,null,null,null,null,null,null,[302,0,0,83,97,0,0,60,0],[656,275,0,83,202,0,0,52,0],[1083,901,0,83,0,0,0,50,0],[1105,927,0,83,0,0,0,51,0],[1109,934,0,82,0,0,0,52,0],[1082,932,0,82,0,0,0,45,0],[1077,926,0,81,0,0,0,43,0],[394,210,0,81,0,0,0,58,0],[182,7,0,81,0,0,0,69,0],[178,1,0,80,0,0,0,69,0],[178,0,0,80,0,0,0,70,0],[177,1,0,80,0,0,0,70,0],[177,1,0,80,0,0,0,75,0],[178,1,0,81,0,0,0,83,0],[178,1,0,80,0,0,0,89,0],[178,1,0,80,0,0,0,90,0],[128,1,0,32,0,0,0,34,0],[95,1,0,0,0,0,0,0,0],[104,1,0,0,0,0,0,8,0],[176,1,0,88,0,0,0,89,0],[171,1,0,85,0,0,0,86,0],[169,1,0,83,0,0,0,85,0],[168,1,0,82,0,0,0,85,0]];
+  (function day() {
+    const svg = document.getElementById("day");
+    const L = 56, R = 14, W = 900, PH = 110, GAP = 34, T0 = 22, N = D.length;
+    const x = i => L + (W - L - R) * i / N;
+    const rows = [
+      { k: "ac", name: "Điều hoà", t: 1, p: 5, max: 1500, step: 500, agg: true },
+      { k: "wh", name: "Bình nóng lạnh", t: 2, p: 6, max: 3600, step: 1200 },
+      { k: "fr", name: "Tủ lạnh", t: 3, p: 7, max: 100, step: 50 },
+    ];
+    rows.forEach((r, i) => {
+      const top = T0 + i * (PH + GAP), bottom = top + PH;
+      const y = v => bottom - PH * Math.min(v, r.max) / r.max;
+      txt(r.name + " (W)", { x: L, y: top - 8, style: "fill: var(--ink); font-weight: 500; font-size: 12px" }, svg);
+      // gaps
+      D.forEach((d, j) => { if (!d) el("rect", { x: x(j), y: top, width: x(j + 1) - x(j) + 0.5, height: PH, style: "fill: var(--gap)" }, svg); });
+      for (let v = 0; v <= r.max; v += r.step) {
+        el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), style: "stroke: var(--rule); stroke-width: 1" }, svg);
+        txt(v >= 1000 ? (v / 1000) + "k" : String(v), { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, svg);
+      }
+      const area = (col) => {
+        let dstr = "", open = false;
+        D.forEach((d, j) => {
+          if (!d) { if (open) { dstr += `L${x(j)},${bottom}Z`; open = false; } return; }
+          if (!open) { dstr += `M${x(j)},${bottom}`; open = true; }
+          dstr += `L${x(j)},${y(d[col])}L${x(j + 1)},${y(d[col])}`;
+        });
+        if (open) dstr += `L${x(N)},${bottom}Z`;
+        return dstr;
+      };
+      const line = (col) => {
+        let dstr = "", pen = false;
+        D.forEach((d, j) => {
+          if (!d) { pen = false; return; }
+          dstr += (pen ? "L" : "M") + `${x(j)},${y(d[col])}L${x(j + 1)},${y(d[col])}`; pen = true;
+        });
+        return dstr;
+      };
+      if (r.agg) el("path", { d: area(0), style: "fill: var(--ot); opacity: .28" }, svg);
+      el("path", { d: area(r.t), style: "fill: var(--ink); opacity: .22" }, svg);
+      el("path", { d: line(r.p), style: `fill: none; stroke: var(--${r.k}); stroke-width: 1.8` }, svg);
+      for (let h = 0; h <= 24; h += 3) {
+        const xx = x(h * 6);
+        el("line", { x1: xx, x2: xx, y1: bottom, y2: bottom + 4, style: "stroke: var(--muted); stroke-width: 1" }, svg);
+        if (i === rows.length - 1) txt(h + "h", { x: xx, y: bottom + 17, "text-anchor": "middle" }, svg);
+      }
+    });
+  })();
+})();
+</script>
+
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral" });
+</script>
+</body>
+</html>

@@ -20,7 +20,31 @@ from src.helpers.preprocessing import REFIT_DataBuilder
 ART = Path(os.environ.get("ARTIFACTS", "artifacts"))
 CACHE = Path(os.environ.get("CACHE_DIR", ART / "cache"))
 DATA_PATH = "data/REFIT/RAW_DATA_CLEAN/"
-APPLIANCES = ["Kettle", "Microwave", "Dishwasher", "WashingMachine"]
+# training-only datasets converted to the REFIT layout by pipeline/convert.py; house ids are
+# offset (house // 100 picks the dataset) so they never clash with REFIT's 1-21
+DATASETS = {0: DATA_PATH, 1: "data/PLEGMA/RAW_DATA_CLEAN/", 2: "data/PRECON/RAW_DATA_CLEAN/"}
+APPS_CFG = "pipeline/appliances.yaml"
+PAPER_APPLIANCES = ["Kettle", "Microwave", "Dishwasher", "WashingMachine"]
+
+
+def appliance_specs():
+    """Extra appliances of pipeline/appliances.yaml (everything but `defaults`)."""
+    with open(APPS_CFG) as f:
+        return {k: v for k, v in yaml.safe_load(f).items() if k != "defaults"}
+
+
+APPLIANCES = PAPER_APPLIANCES + [a for a in appliance_specs() if a not in PAPER_APPLIANCES]
+
+
+def data_path_for(house):
+    return DATASETS[int(house) // 100]
+
+
+def house_appliances(house):
+    """Pipeline appliances metered in `house` (its inventory), from the dataset's HOUSES_Labels."""
+    labels = pd.read_csv(data_path_for(house) + "HOUSES_Labels").set_index("House_id")
+    names, specs = set(labels.loc[int(house)].values), appliance_specs()
+    return [a for a in APPLIANCES if names & set(specs.get(a, {}).get("labels", [a]))]
 for _d in (CACHE, ART / "models", ART / "predictions", ART / "outputs"):
     _d.mkdir(parents=True, exist_ok=True)
 
@@ -41,7 +65,15 @@ def load_config(appliance, model="NILMFormer"):
     with open("configs/models.yaml") as f:
         cfg.update(yaml.safe_load(f)[model])
     with open("configs/datasets.yaml") as f:
-        cfg.update(yaml.safe_load(f)["REFIT"][appliance])
+        refit = yaml.safe_load(f)["REFIT"]
+    with open(APPS_CFG) as f:
+        apps = yaml.safe_load(f)
+    if appliance not in refit and appliance not in apps:
+        raise KeyError(f"unknown appliance {appliance!r}: add it to {APPS_CFG}")
+    cfg.update(apps["defaults"])
+    cfg.update(refit.get(appliance, {}))
+    cfg.update(apps.get(appliance, {}))
+    cfg["app"] = appliance
     with open("pipeline/paper.yaml") as f:
         cfg.update(yaml.safe_load(f))
     cfg["name_model"] = model
@@ -50,7 +82,43 @@ def load_config(appliance, model="NILMFormer"):
 
 
 # ---------------------------------------------------------------- data cache
-class InferenceBuilder(REFIT_DataBuilder):
+class PipelineBuilder(REFIT_DataBuilder):
+    """REFIT builder that also knows the extra appliances of pipeline/appliances.yaml.
+
+    An extra appliance can be recorded under a different label in each house (Fridge-Freezer,
+    Fridge & Freezer, ...): the house's label is resolved, the vendored builder runs on it
+    unchanged, and its columns are renamed back to the pipeline name.
+    """
+
+    def __init__(self, *args, **kw):
+        self._specs = appliance_specs()
+        super().__init__(*args, **kw)
+        for app, spec in self._specs.items():
+            self.appliance_param[app] = {k: spec[k] for k in ("min_threshold", "max_threshold")}
+
+    def _check_appliance_names(self):
+        unknown = [a for a in self.mask_app if a not in PAPER_APPLIANCES and a not in self._specs]
+        assert not unknown, f"unknown appliance(s) {unknown}: add them to {APPS_CFG}"
+
+    def _get_dataframe(self, indice):
+        labels = pd.read_csv(self.data_path + "HOUSES_Labels").set_index("House_id")
+        names = set(labels.loc[int(indice)].values)
+        raw_apps, rename = [], {}
+        for app in self.mask_app[1:]:
+            raw = next((n for n in self._specs.get(app, {}).get("labels", []) if n in names), app)
+            if raw != app:
+                self.appliance_param[raw] = self.appliance_param[app]
+                rename.update({raw: app, f"{raw}_status": f"{app}_status"})
+            raw_apps.append(raw)
+        mask_app, self.mask_app = self.mask_app, ["Aggregate"] + raw_apps
+        try:
+            df = super()._get_dataframe(indice)
+        finally:
+            self.mask_app = mask_app
+        return df.rename(columns=rename)
+
+
+class InferenceBuilder(PipelineBuilder):
     """Keep every window whose *aggregate* is complete (appliance NaNs are allowed:
     they only affect the ground truth used for evaluation, not the model input)."""
 
@@ -60,9 +128,9 @@ class InferenceBuilder(REFIT_DataBuilder):
 
 def _build_one(args):
     apps, house, sr, ws, stride, infer, path = args
-    cls = InferenceBuilder if infer else REFIT_DataBuilder
+    cls = InferenceBuilder if infer else PipelineBuilder
     builder = cls(
-        data_path=DATA_PATH, mask_app=list(apps), sampling_rate=sr,
+        data_path=data_path_for(house), mask_app=list(apps), sampling_rate=sr,
         window_size=ws, window_stride=stride,
     )
     data, st = builder.get_nilm_dataset([house])

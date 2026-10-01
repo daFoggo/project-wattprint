@@ -1,9 +1,56 @@
-# Post-processing parameters. Edit and re-run `python -m pipeline.postprocess run --house N`
-# (takes seconds, no retraining). `tune` rewrites thresholds from a validation house.
-residual_name: Other        # aggregate - sum(appliances), clipped at 0
-cap_to_aggregate: true      # if sum(appliances) > aggregate, scale them down proportionally
+residual_name: Other
+cap_to_aggregate: true
 appliances:
-  Kettle:         {threshold_w: 500, min_on_steps: 1, smooth: 1, max_w: 6000, truth_threshold_w: 500}
-  Microwave:      {threshold_w: 200, min_on_steps: 1, smooth: 1, max_w: 6000, truth_threshold_w: 200}
-  Dishwasher:     {threshold_w: 300, min_on_steps: 2, smooth: 3, max_w: 4000, truth_threshold_w: 300}
-  WashingMachine: {threshold_w: 300, min_on_steps: 2, smooth: 3, max_w: 4000, truth_threshold_w: 300}
+  Kettle:
+    threshold_w: 534.0
+    min_on_steps: 1
+    smooth: 1
+    max_w: 6000
+    truth_threshold_w: 500
+  Microwave:
+    threshold_w: 106.4
+    min_on_steps: 1
+    smooth: 1
+    max_w: 6000
+    truth_threshold_w: 200
+  Dishwasher:
+    threshold_w: 658.5
+    min_on_steps: 2
+    smooth: 3
+    max_w: 4000
+    truth_threshold_w: 300
+  WashingMachine:
+    threshold_w: 206.6
+    min_on_steps: 2
+    smooth: 3
+    max_w: 4000
+    truth_threshold_w: 300
+    gain: 1.88
+  Fridge:
+    threshold_w: 20
+    min_on_steps: 3
+    smooth: 3
+    max_w: 1000
+    truth_threshold_w: 50
+    tune_threshold: false
+    gain: 0.826
+  TumbleDryer:
+    threshold_w: 116.8
+    min_on_steps: 2
+    smooth: 3
+    max_w: 4000
+    truth_threshold_w: 300
+  AC:
+    threshold_w: 286.3
+    min_on_steps: 2
+    smooth: 3
+    max_w: 10000
+    truth_threshold_w: 100
+    gain: 1.458
+  WaterHeater:
+    threshold_w: 1002.2
+    min_on_steps: 1
+    smooth: 1
+    max_w: 6000
+    truth_threshold_w: 500
+    gain: 0.989
