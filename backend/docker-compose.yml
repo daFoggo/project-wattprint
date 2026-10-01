@@ -1,0 +1,26 @@
+# Backend stack: FastAPI + PostgreSQL/TimescaleDB (Tiger Data). Run from this folder.
+name: wattprint-backend
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: .
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_HOST_PORT:-8001}:8000"
+
+volumes:
+  pgdata:

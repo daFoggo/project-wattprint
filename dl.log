@@ -1,0 +1,75 @@
+ Image wattprint-nilm-download-refit Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 665B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 475B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 ...
+
+#4 [internal] load metadata for ghcr.io/astral-sh/uv:latest
+#4 DONE 1.1s
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 1.8s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 3.31kB 0.0s done
+#6 DONE 0.0s
+
+#7 [stage-0 1/7] FROM docker.io/library/python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
+#7 resolve docker.io/library/python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f 0.0s done
+#7 DONE 0.0s
+
+#8 FROM ghcr.io/astral-sh/uv:latest@sha256:a7aed3216253ee804de3e2d8afa5073baa1a177335345d43845cd4165e43b711
+#8 resolve ghcr.io/astral-sh/uv:latest@sha256:a7aed3216253ee804de3e2d8afa5073baa1a177335345d43845cd4165e43b711 0.0s done
+#8 DONE 0.0s
+
+#9 [stage-0 4/7] COPY NILMFormer/pyproject.toml NILMFormer/uv.lock ./
+#9 CACHED
+
+#10 [stage-0 5/7] RUN uv sync --frozen --no-install-project && uv pip install py7zr requests
+#10 CACHED
+
+#11 [stage-0 3/7] WORKDIR /app
+#11 CACHED
+
+#12 [stage-0 6/7] COPY NILMFormer/ .
+#12 CACHED
+
+#13 [stage-0 2/7] COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+#13 CACHED
+
+#14 [stage-0 7/7] COPY tools/ ./tools/
+#14 CACHED
+
+#15 exporting to image
+#15 exporting layers done
+#15 exporting manifest sha256:bd239482b4ba8e62766a5426ae62e5eab6b1b31196c57a4295ab935ef321b534 0.0s done
+#15 exporting config sha256:345d55e3d9bc7872ed8d8e590366dcd61876edbf8928ddb3509bfb64b9ec923b 0.0s done
+#15 exporting attestation manifest sha256:8b425a833d9086b853614ad6610b05cca7afe0504e47ad703d05902d832f6f28 0.0s done
+#15 exporting manifest list sha256:69c49a32874d89b39981e689f4c66862cbbb8c464c4760c1080d32e2c3dc61d5
+#15 exporting manifest list sha256:69c49a32874d89b39981e689f4c66862cbbb8c464c4760c1080d32e2c3dc61d5 0.0s done
+#15 naming to docker.io/library/wattprint-nilm-download-refit:latest done
+#15 unpacking to docker.io/library/wattprint-nilm-download-refit:latest done
+#15 DONE 0.1s
+
+#16 resolving provenance for metadata file
+#16 DONE 0.0s
+ Image wattprint-nilm-download-refit Built 
+ Container wattprint-nilm-download-refit-run-90acac5345f9 Creating 
+ Container wattprint-nilm-download-refit-run-90acac5345f9 Created 
+Traceback (most recent call last):
+  File "/app/tools/download_refit.py", line 12, in <module>
+    r.raise_for_status()
+  File "/app/.venv/lib/python3.12/site-packages/requests/models.py", line 1167, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 403 Client Error: Forbidden for url: https://pureportal.strath.ac.uk/files/62090184/CLEAN_REFIT_081116.7z
+

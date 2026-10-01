@@ -1,0 +1,32 @@
+# NILMFormer experiments (GPU). Run from this folder; independent from ../backend.
+name: wattprint-nilm
+x-nilm: &nilm
+  build: .
+  env_file: .env
+  volumes:
+    - ./NILMFormer/data:/app/data
+    - ./results:/app/result
+  shm_size: "2gb"
+
+services:
+  # one-off: docker compose --profile tools run --rm download-refit
+  download-refit:
+    <<: *nilm
+    profiles: ["tools"]
+    command: ["python", "tools/download_refit.py"]
+
+  # docker compose run --rm experiment
+  experiment:
+    <<: *nilm
+    command: >
+      python -m scripts.run_one_expe
+      --dataset ${DATASET} --sampling_rate ${SAMPLING_RATE}
+      --appliance ${APPLIANCE} --window_size ${WINDOW_SIZE}
+      --name_model ${MODEL} --seed ${SEED}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

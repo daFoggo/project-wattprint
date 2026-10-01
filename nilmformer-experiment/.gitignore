@@ -1,0 +1,5 @@
+NILMFormer/data/*/*
+!NILMFormer/data/*/README.MD
+!NILMFormer/data/REFIT/RAW_DATA_CLEAN/HOUSES_Labels
+results/
+.env
