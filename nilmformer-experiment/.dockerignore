@@ -2,3 +2,4 @@ NILMFormer/data/*/*
 NILMFormer/results
 results
 .env
+artifacts

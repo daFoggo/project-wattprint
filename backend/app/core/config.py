@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_CORS_ORIGINS: list[str] = []
 
+    # NILM inference service (nilmformer-experiment, `docker compose up -d inference`)
+    NILM_SERVICE_URL: str = "http://host.docker.internal:8002"
+
     POSTGRES_USER: str = "wattprint"
     POSTGRES_PASSWORD: str = "change-me"
     POSTGRES_DB: str = "wattprint"

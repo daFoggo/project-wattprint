@@ -4,9 +4,11 @@ ENV UV_LINK_MODE=copy PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 
 COPY NILMFormer/pyproject.toml NILMFormer/uv.lock ./
-RUN uv sync --frozen --no-install-project && uv pip install py7zr requests
+RUN uv sync --frozen --no-install-project && uv pip install py7zr requests pyarrow fastapi uvicorn httpx
 
 COPY NILMFormer/ .
 COPY tools/ ./tools/
+COPY pipeline/ ./pipeline/
+COPY service/ ./service/
 # data/ and result/ are bind-mounted by docker-compose
 CMD ["python", "-m", "scripts.run_one_expe"]

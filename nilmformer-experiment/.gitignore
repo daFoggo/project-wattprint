@@ -3,3 +3,4 @@ NILMFormer/data/*/*
 !NILMFormer/data/REFIT/RAW_DATA_CLEAN/HOUSES_Labels
 results/
 .env
+artifacts/

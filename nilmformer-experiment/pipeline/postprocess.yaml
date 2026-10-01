@@ -1,0 +1,9 @@
+# Post-processing parameters. Edit and re-run `python -m pipeline.postprocess run --house N`
+# (takes seconds, no retraining). `tune` rewrites thresholds from a validation house.
+residual_name: Other        # aggregate - sum(appliances), clipped at 0
+cap_to_aggregate: true      # if sum(appliances) > aggregate, scale them down proportionally
+appliances:
+  Kettle:         {threshold_w: 500, min_on_steps: 1, smooth: 1, max_w: 6000, truth_threshold_w: 500}
+  Microwave:      {threshold_w: 200, min_on_steps: 1, smooth: 1, max_w: 6000, truth_threshold_w: 200}
+  Dishwasher:     {threshold_w: 300, min_on_steps: 2, smooth: 3, max_w: 4000, truth_threshold_w: 300}
+  WashingMachine: {threshold_w: 300, min_on_steps: 2, smooth: 3, max_w: 4000, truth_threshold_w: 300}

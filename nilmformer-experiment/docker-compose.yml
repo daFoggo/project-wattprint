@@ -6,9 +6,24 @@ x-nilm: &nilm
   volumes:
     - ./NILMFormer/data:/app/data
     - ./results:/app/result
+    - ./artifacts:/app/artifacts
+    - ./pipeline:/app/pipeline
+    - ./service:/app/service
   shm_size: "2gb"
 
 services:
+  # train / predict / postprocess:
+  #   docker compose run --rm pipeline python -m pipeline.<step> ...
+  pipeline:
+    <<: *nilm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   # one-off: docker compose --profile tools run --rm download-refit
   download-refit:
     <<: *nilm
@@ -35,6 +50,22 @@ services:
       --dataset ${DATASET} --sampling_rate ${SAMPLING_RATE}
       --appliance ${APPLIANCE} --window_size ${WINDOW_SIZE}
       --name_model ${MODEL} --seed ${SEED}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Inference API (POST /disaggregate). Models are read from ./artifacts/models.
+  # Start with: docker compose up -d inference
+  inference:
+    <<: *nilm
+    command: ["uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "${INFERENCE_PORT:-8002}:8000"
+    restart: unless-stopped
     deploy:
       resources:
         reservations:

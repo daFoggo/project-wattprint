@@ -1,0 +1,7 @@
+# Training protocol of the NILMFormer paper (arXiv 2506.05880, experimental setup).
+# Overrides the repo defaults in NILMFormer/configs/expes.yaml (epochs=3, p_es=5, p_rlr=3).
+epochs: 50       # max epochs
+p_es: 10         # early-stopping patience
+p_rlr: 5         # ReduceLROnPlateau patience
+batch_size: 64
+# lr 1e-4, wd 0 (AdamW with wd=0 == Adam) and MSE loss come from NILMFormer/configs/models.yaml
