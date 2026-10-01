@@ -1,0 +1,3093 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "WattPrint API",
+    "summary": "Household energy disaggregation (NILM) for WattPrint",
+    "description": "Whole-house power in, appliance-level consumption out.\n\n* **Demo** — one household (Plegma House 101), every result precomputed: no model runs, every\n  call answers in milliseconds. Start with `GET /api/v1/demo/household`.\n* **Platform** — devices, raw readings, CSV import of NILM results and live disaggregation.\n\nErrors follow RFC 9457 (`application/problem+json`). Times are ISO 8601, UTC.\n",
+    "version": "0.2.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The host serving this document",
+      "name": "current"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Devices",
+        "operationId": "listDevices",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceRead"
+                  },
+                  "type": "array",
+                  "title": "Response Listdevices"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Create Device",
+        "operationId": "createDevice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Get Device",
+        "operationId": "getDevice",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}/readings": {
+      "post": {
+        "tags": [
+          "readings"
+        ],
+        "summary": "Ingest",
+        "operationId": "createReadings",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingsBulkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "readings"
+        ],
+        "summary": "Query",
+        "operationId": "listReadings",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1 minute",
+                "10 minutes",
+                "1 hour",
+                "1 day"
+              ],
+              "type": "string",
+              "default": "1 hour",
+              "title": "Bucket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BucketOut"
+                  },
+                  "title": "Response Listreadings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/households": {
+      "get": {
+        "tags": [
+          "disaggregation"
+        ],
+        "summary": "List Households",
+        "operationId": "listHouseholds",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HouseholdRead"
+                  },
+                  "type": "array",
+                  "title": "Response Listhouseholds"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/households/import": {
+      "post": {
+        "tags": [
+          "disaggregation"
+        ],
+        "summary": "Import Disaggregation",
+        "operationId": "importHouseholdDisaggregation",
+        "parameters": [
+          {
+            "name": "household",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Household"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_importHouseholdDisaggregation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/households/{household_id}/disaggregation": {
+      "get": {
+        "tags": [
+          "disaggregation"
+        ],
+        "summary": "Get Disaggregation",
+        "operationId": "getHouseholdDisaggregation",
+        "parameters": [
+          {
+            "name": "household_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Household Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1 minute",
+                "10 minutes",
+                "1 hour",
+                "1 day"
+              ],
+              "type": "string",
+              "default": "1 hour",
+              "title": "Bucket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisaggregationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/disaggregate": {
+      "post": {
+        "tags": [
+          "disaggregation"
+        ],
+        "summary": "Disaggregate",
+        "description": "Whole-house power in, per-appliance power out. Proxies to the NILM inference service.",
+        "operationId": "disaggregateLive",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisaggregateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "summary": "Invalid parameters"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/household": {
+      "get": {
+        "tags": [
+          "demo-household"
+        ],
+        "summary": "Household and model",
+        "description": "Profile of the demo household (dataset, period, appliances, suggested window) and of the models that produced its results. Works without the database.",
+        "operationId": "getDemoHousehold",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                },
+                "examples": {
+                  "plegma101": {
+                    "summary": "Plegma House 101",
+                    "dataValue": {
+                      "household": {
+                        "name": "Plegma House 101",
+                        "dataset": "Plegma",
+                        "country": "GR",
+                        "dataset_license": "CC BY 4.0",
+                        "period": {
+                          "start": "2022-07-15T00:00:00Z",
+                          "end": "2023-09-30T22:23:00Z"
+                        },
+                        "timezone_note": "timestamps as recorded by the dataset, served as UTC",
+                        "sampling_interval_seconds": 60,
+                        "valid_days": 426.9,
+                        "aggregate_energy_kwh": 3135.2,
+                        "held_out": true,
+                        "appliances": [
+                          {
+                            "key": "AC",
+                            "name": "Điều hoà",
+                            "name_en": "Air conditioner",
+                            "kind": "appliance"
+                          },
+                          {
+                            "key": "WaterHeater",
+                            "name": "Bình nóng lạnh",
+                            "name_en": "Water heater",
+                            "kind": "appliance"
+                          },
+                          {
+                            "key": "Fridge",
+                            "name": "Tủ lạnh",
+                            "name_en": "Fridge",
+                            "kind": "appliance"
+                          },
+                          {
+                            "key": "WashingMachine",
+                            "name": "Máy giặt",
+                            "name_en": "Washing machine",
+                            "kind": "appliance"
+                          },
+                          {
+                            "key": "Other",
+                            "name": "Khác",
+                            "name_en": "Other",
+                            "kind": "residual"
+                          }
+                        ],
+                        "sample_window": {
+                          "start": "2023-07-10T00:00:00Z",
+                          "end": "2023-07-17T00:00:00Z",
+                          "bucket": "1 hour"
+                        },
+                        "missing_pct": 3.61,
+                        "metered_pct": 81.01
+                      },
+                      "model": {
+                        "name": "NILMFormer",
+                        "parameters": 383283,
+                        "window_minutes": 128,
+                        "sampling": "1min",
+                        "paper": "arXiv:2506.05880",
+                        "git_commit": "a5936f9",
+                        "per_appliance": [
+                          {
+                            "appliance": "AC",
+                            "training_datasets": [
+                              "Plegma",
+                              "PRECON"
+                            ],
+                            "training_houses": 15,
+                            "validation_house": 103,
+                            "epochs": 15,
+                            "best_epoch": 5
+                          },
+                          {
+                            "appliance": "WaterHeater",
+                            "training_datasets": [
+                              "Plegma"
+                            ],
+                            "training_houses": 10,
+                            "validation_house": 103,
+                            "epochs": 22,
+                            "best_epoch": 12
+                          },
+                          {
+                            "appliance": "Fridge",
+                            "training_datasets": [
+                              "REFIT",
+                              "Plegma"
+                            ],
+                            "training_houses": 18,
+                            "validation_house": 103,
+                            "epochs": 29,
+                            "best_epoch": 19
+                          },
+                          {
+                            "appliance": "WashingMachine",
+                            "training_datasets": [
+                              "REFIT",
+                              "Plegma"
+                            ],
+                            "training_houses": 26,
+                            "validation_house": 103,
+                            "epochs": 20,
+                            "best_epoch": 10
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "summary": "Household profile"
+          },
+          "404": {
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "summary": "Demo data not available"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/consumption": {
+      "get": {
+        "tags": [
+          "demo-consumption"
+        ],
+        "summary": "Power per appliance over a window",
+        "description": "Whole-house power and the **predicted** power of every appliance, bucketed, with the energy and share of each appliance. Without parameters: one summer week by hour. At most 2000 buckets per series.",
+        "operationId": "getDemoConsumption",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window start, ISO 8601 (UTC if no offset). Default: the sample window",
+              "title": "Start"
+            },
+            "description": "Window start, ISO 8601 (UTC if no offset). Default: the sample window"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window end, exclusive. Default: the sample window",
+              "title": "End"
+            },
+            "description": "Window end, exclusive. Default: the sample window"
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1 minute",
+                "10 minutes",
+                "1 hour",
+                "1 day"
+              ],
+              "type": "string",
+              "description": "Bucket width",
+              "default": "1 hour",
+              "title": "Bucket"
+            },
+            "description": "Bucket width"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumptionOut"
+                }
+              }
+            },
+            "summary": "Bucketed series and totals"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/breakdown": {
+      "get": {
+        "tags": [
+          "demo-consumption"
+        ],
+        "summary": "Energy share per appliance",
+        "description": "Predicted energy and share of each appliance over a window (for a pie or bar chart). Without parameters: the whole recorded period.",
+        "operationId": "getDemoBreakdown",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window start, ISO 8601 (UTC if no offset). Default: the sample window",
+              "title": "Start"
+            },
+            "description": "Window start, ISO 8601 (UTC if no offset). Default: the sample window"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window end, exclusive. Default: the sample window",
+              "title": "End"
+            },
+            "description": "Window end, exclusive. Default: the sample window"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreakdownOut"
+                }
+              }
+            },
+            "summary": "Energy per appliance"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/evaluation": {
+      "get": {
+        "tags": [
+          "demo-evaluation"
+        ],
+        "summary": "Accuracy against the ground truth",
+        "description": "Per-appliance metrics (F1, MAE, SAE, ...), measured vs predicted energy mix, F1 per quarter and the main findings. Precomputed.",
+        "operationId": "getDemoEvaluation",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationOut"
+                },
+                "examples": {
+                  "plegma101": {
+                    "summary": "Plegma House 101",
+                    "dataValue": {
+                      "household": "Plegma House 101",
+                      "method": "Models never trained on this household. Thresholds and energy gains tuned on another household (Plegma 103). Compared minute by minute with the sub-metered ground truth.",
+                      "mean_f1": 0.766,
+                      "appliances": [
+                        {
+                          "key": "AC",
+                          "name": "Điều hoà",
+                          "verdict": "detected_reliably_energy_underestimated",
+                          "f1": 0.809,
+                          "precision": 0.939,
+                          "recall": 0.711,
+                          "mae_w": 73.2,
+                          "rmse_w": 246.5,
+                          "sae": 0.407,
+                          "nde": 0.313,
+                          "matching_ratio": 0.529,
+                          "measured_kwh": 1445.6,
+                          "predicted_kwh": 856.9,
+                          "on_minutes": 75625
+                        },
+                        {
+                          "key": "WaterHeater",
+                          "name": "Bình nóng lạnh",
+                          "verdict": "accurate",
+                          "f1": 0.985,
+                          "precision": 0.981,
+                          "recall": 0.988,
+                          "mae_w": 7.0,
+                          "rmse_w": 88.1,
+                          "sae": 0.057,
+                          "nde": 0.03,
+                          "matching_ratio": 0.892,
+                          "measured_kwh": 638.4,
+                          "predicted_kwh": 601.9,
+                          "on_minutes": 9537
+                        },
+                        {
+                          "key": "Fridge",
+                          "name": "Tủ lạnh",
+                          "verdict": "good_except_constant_draw_days",
+                          "f1": 0.801,
+                          "precision": 0.88,
+                          "recall": 0.735,
+                          "mae_w": 20.4,
+                          "rmse_w": 32.6,
+                          "sae": 0.422,
+                          "nde": 0.319,
+                          "matching_ratio": 0.525,
+                          "measured_kwh": 417.1,
+                          "predicted_kwh": 241.1,
+                          "on_minutes": 309536
+                        },
+                        {
+                          "key": "WashingMachine",
+                          "name": "Máy giặt",
+                          "verdict": "weak_low_impact",
+                          "f1": 0.468,
+                          "precision": 0.409,
+                          "recall": 0.546,
+                          "mae_w": 3.5,
+                          "rmse_w": 65.0,
+                          "sae": 0.161,
+                          "nde": 0.632,
+                          "matching_ratio": 0.329,
+                          "measured_kwh": 38.7,
+                          "predicted_kwh": 32.5,
+                          "on_minutes": 1239
+                        }
+                      ],
+                      "mix": [
+                        {
+                          "key": "AC",
+                          "name": "Điều hoà",
+                          "measured_kwh": 1445.6,
+                          "predicted_kwh": 869.4,
+                          "measured_share_pct": 46.11,
+                          "predicted_share_pct": 27.73
+                        },
+                        {
+                          "key": "WaterHeater",
+                          "name": "Bình nóng lạnh",
+                          "measured_kwh": 638.4,
+                          "predicted_kwh": 605.4,
+                          "measured_share_pct": 20.36,
+                          "predicted_share_pct": 19.31
+                        },
+                        {
+                          "key": "Fridge",
+                          "name": "Tủ lạnh",
+                          "measured_kwh": 417.1,
+                          "predicted_kwh": 245.6,
+                          "measured_share_pct": 13.3,
+                          "predicted_share_pct": 7.83
+                        },
+                        {
+                          "key": "WashingMachine",
+                          "name": "Máy giặt",
+                          "measured_kwh": 38.7,
+                          "predicted_kwh": 33.5,
+                          "measured_share_pct": 1.23,
+                          "predicted_share_pct": 1.07
+                        },
+                        {
+                          "key": "Other",
+                          "name": "Khác",
+                          "measured_kwh": 595.4,
+                          "predicted_kwh": 1381.2,
+                          "measured_share_pct": 18.99,
+                          "predicted_share_pct": 44.06
+                        }
+                      ],
+                      "quarterly_f1": [
+                        {
+                          "appliance": "AC",
+                          "quarter": "Q3/2022",
+                          "f1": 0.784
+                        },
+                        {
+                          "appliance": "AC",
+                          "quarter": "Q4/2022",
+                          "f1": 0.476
+                        },
+                        {
+                          "appliance": "AC",
+                          "quarter": "Q1/2023",
+                          "f1": 0.699
+                        },
+                        {
+                          "appliance": "AC",
+                          "quarter": "Q2/2023",
+                          "f1": 0.688
+                        },
+                        {
+                          "appliance": "AC",
+                          "quarter": "Q3/2023",
+                          "f1": 0.874
+                        },
+                        {
+                          "appliance": "WaterHeater",
+                          "quarter": "Q3/2022",
+                          "f1": 0.985
+                        },
+                        {
+                          "appliance": "WaterHeater",
+                          "quarter": "Q4/2022",
+                          "f1": 0.981
+                        },
+                        {
+                          "appliance": "WaterHeater",
+                          "quarter": "Q1/2023",
+                          "f1": 0.987
+                        },
+                        {
+                          "appliance": "WaterHeater",
+                          "quarter": "Q2/2023",
+                          "f1": 0.978
+                        },
+                        {
+                          "appliance": "WaterHeater",
+                          "quarter": "Q3/2023",
+                          "f1": 0.969
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "quarter": "Q3/2022",
+                          "f1": 0.497
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "quarter": "Q4/2022",
+                          "f1": 0.863
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "quarter": "Q1/2023",
+                          "f1": 0.697
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "quarter": "Q2/2023",
+                          "f1": 0.957
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "quarter": "Q3/2023",
+                          "f1": 0.916
+                        },
+                        {
+                          "appliance": "WashingMachine",
+                          "quarter": "Q3/2022",
+                          "f1": 0.478
+                        },
+                        {
+                          "appliance": "WashingMachine",
+                          "quarter": "Q4/2022",
+                          "f1": 0.39
+                        },
+                        {
+                          "appliance": "WashingMachine",
+                          "quarter": "Q1/2023",
+                          "f1": 0.597
+                        },
+                        {
+                          "appliance": "WashingMachine",
+                          "quarter": "Q2/2023",
+                          "f1": 0.488
+                        },
+                        {
+                          "appliance": "WashingMachine",
+                          "quarter": "Q3/2023",
+                          "f1": 0.26
+                        }
+                      ],
+                      "findings": [
+                        {
+                          "appliance": "AC",
+                          "code": "ac_heating_underestimated",
+                          "text": "Điều hoà phát hiện đúng lúc bật (precision cao) nhưng đoán thấp công suất, nhất là mùa đông khi chạy sưởi."
+                        },
+                        {
+                          "appliance": "Fridge",
+                          "code": "fridge_constant_draw",
+                          "text": "68 ngày tủ lạnh kéo đều ~72 W, không đóng ngắt: không tách được từ công tơ tổng. Loại các ngày này: F1 0.913."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "summary": "Evaluation"
+          },
+          "404": {
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "summary": "Demo data not available"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/evaluation/monthly": {
+      "get": {
+        "tags": [
+          "demo-evaluation"
+        ],
+        "summary": "Monthly energy, measured vs predicted",
+        "operationId": "listDemoMonthlyEnergy",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyOut"
+                }
+              }
+            },
+            "summary": "One item per month"
+          },
+          "404": {
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "summary": "Demo data not available"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/evaluation/daily": {
+      "get": {
+        "tags": [
+          "demo-evaluation"
+        ],
+        "summary": "Daily energy, measured vs predicted",
+        "description": "Days with at least 90 % of the minutes, optionally filtered by date.",
+        "operationId": "listDemoDailyEnergy",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (inclusive)",
+              "title": "Start"
+            },
+            "description": "First day (inclusive)"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (inclusive)",
+              "title": "End"
+            },
+            "description": "Last day (inclusive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyOut"
+                }
+              }
+            },
+            "summary": "One item per day"
+          },
+          "404": {
+            "summary": "Demo data not available",
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "summary": "Invalid parameters",
+            "description": "Malformed value, `start` after `end`, or too many points.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/evaluation/sample-day": {
+      "get": {
+        "tags": [
+          "demo-evaluation"
+        ],
+        "summary": "One day, measured vs predicted power",
+        "description": "10-minute means of one summer day for every appliance. `null` marks an interval without data (the household has a 2-hour gap that day).",
+        "operationId": "getDemoSampleDay",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleDayOut"
+                }
+              }
+            },
+            "summary": "144 ten-minute points"
+          },
+          "404": {
+            "description": "The household series is not imported, or the snapshot is missing.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "summary": "Demo data not available"
+          },
+          "default": {
+            "summary": "Error",
+            "description": "Any other error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Appliance": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key",
+            "description": "Stable identifier (device name in the database)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name (Vietnamese)",
+            "examples": [
+              "Điều hoà"
+            ]
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En",
+            "examples": [
+              "Air conditioner"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "appliance",
+              "residual"
+            ],
+            "title": "Kind",
+            "description": "`residual`: whole-house power minus every modelled appliance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "name_en",
+          "kind"
+        ],
+        "title": "Appliance"
+      },
+      "ApplianceMetrics": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "accurate",
+              "detected_reliably_energy_underestimated",
+              "good_except_constant_draw_days",
+              "weak_low_impact"
+            ],
+            "title": "Verdict"
+          },
+          "f1": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F1",
+            "description": "ON/OFF F1 per minute"
+          },
+          "precision": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Precision"
+          },
+          "recall": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Recall"
+          },
+          "mae_w": {
+            "type": "number",
+            "title": "Mae W",
+            "description": "Mean absolute error, W"
+          },
+          "rmse_w": {
+            "type": "number",
+            "title": "Rmse W"
+          },
+          "sae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sae",
+            "description": "|E_pred - E_true| / E_true over the period"
+          },
+          "nde": {
+            "type": "number",
+            "title": "Nde",
+            "description": "Normalised disaggregation error"
+          },
+          "matching_ratio": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Matching Ratio",
+            "description": "sum(min) / sum(max) (paper metric)"
+          },
+          "measured_kwh": {
+            "type": "number",
+            "title": "Measured Kwh"
+          },
+          "predicted_kwh": {
+            "type": "number",
+            "title": "Predicted Kwh"
+          },
+          "on_minutes": {
+            "type": "integer",
+            "title": "On Minutes",
+            "description": "Minutes the appliance is ON in the ground truth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "verdict",
+          "f1",
+          "precision",
+          "recall",
+          "mae_w",
+          "rmse_w",
+          "sae",
+          "nde",
+          "matching_ratio",
+          "measured_kwh",
+          "predicted_kwh",
+          "on_minutes"
+        ],
+        "title": "ApplianceMetrics"
+      },
+      "ApplianceModel": {
+        "properties": {
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "training_datasets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Training Datasets",
+            "examples": [
+              [
+                "Plegma",
+                "PRECON"
+              ]
+            ]
+          },
+          "training_houses": {
+            "type": "integer",
+            "title": "Training Houses"
+          },
+          "validation_house": {
+            "type": "integer",
+            "title": "Validation House"
+          },
+          "epochs": {
+            "type": "integer",
+            "title": "Epochs",
+            "description": "Epochs run before early stopping"
+          },
+          "best_epoch": {
+            "type": "integer",
+            "title": "Best Epoch",
+            "description": "Epoch whose weights are kept"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appliance",
+          "training_datasets",
+          "training_houses",
+          "validation_house",
+          "epochs",
+          "best_epoch"
+        ],
+        "title": "ApplianceModel"
+      },
+      "ApplianceSeries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PowerPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "points"
+        ],
+        "title": "ApplianceSeries"
+      },
+      "Body_importHouseholdDisaggregation": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "CSV from nilmformer-experiment outputs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_importHouseholdDisaggregation"
+      },
+      "BreakdownOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "aggregate_energy_kwh": {
+            "type": "number",
+            "title": "Aggregate Energy Kwh"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/EnergyShare"
+            },
+            "type": "array",
+            "title": "Totals",
+            "description": "Predicted energy per appliance, largest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "start",
+          "end",
+          "aggregate_energy_kwh",
+          "totals"
+        ],
+        "title": "BreakdownOut"
+      },
+      "BucketOut": {
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bucket"
+          },
+          "avg_power_w": {
+            "type": "number",
+            "title": "Avg Power W"
+          },
+          "max_power_w": {
+            "type": "number",
+            "title": "Max Power W"
+          },
+          "energy_wh": {
+            "type": "number",
+            "title": "Energy Wh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bucket",
+          "avg_power_w",
+          "max_power_w",
+          "energy_wh"
+        ],
+        "title": "BucketOut"
+      },
+      "ConsumptionOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "1 minute",
+              "10 minutes",
+              "1 hour",
+              "1 day"
+            ],
+            "title": "Bucket"
+          },
+          "aggregate": {
+            "items": {
+              "$ref": "#/components/schemas/PowerPoint"
+            },
+            "type": "array",
+            "title": "Aggregate",
+            "description": "Whole-house (metered) power"
+          },
+          "appliances": {
+            "items": {
+              "$ref": "#/components/schemas/ApplianceSeries"
+            },
+            "type": "array",
+            "title": "Appliances",
+            "description": "Predicted power per appliance"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/EnergyShare"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "aggregate_energy_kwh": {
+            "type": "number",
+            "title": "Aggregate Energy Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "start",
+          "end",
+          "bucket",
+          "aggregate",
+          "appliances",
+          "totals",
+          "aggregate_energy_kwh"
+        ],
+        "title": "ConsumptionOut"
+      },
+      "DailyOut": {
+        "properties": {
+          "household": {
+            "type": "string",
+            "title": "Household"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DayEnergy"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Days with at least 90 % of the minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household",
+          "items"
+        ],
+        "title": "DailyOut"
+      },
+      "DayEnergy": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "aggregate_kwh": {
+            "type": "number",
+            "title": "Aggregate Kwh"
+          },
+          "appliances": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EnergyPair"
+            },
+            "propertyNames": {
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "Fridge",
+                "WashingMachine"
+              ]
+            },
+            "type": "object",
+            "title": "Appliances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "aggregate_kwh",
+          "appliances"
+        ],
+        "title": "DayEnergy"
+      },
+      "DeviceCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "DeviceCreate"
+      },
+      "DeviceKind": {
+        "type": "string",
+        "enum": [
+          "aggregate",
+          "appliance"
+        ],
+        "title": "DeviceKind"
+      },
+      "DeviceRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeviceKind"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "id",
+          "created_at"
+        ],
+        "title": "DeviceRead"
+      },
+      "DisaggregateIn": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "power_w": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Power W"
+          },
+          "stride": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stride"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "power_w"
+        ],
+        "title": "DisaggregateIn"
+      },
+      "DisaggregationOut": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "bucket": {
+            "type": "string",
+            "title": "Bucket"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/TotalOut"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesOut"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "start",
+          "end",
+          "bucket",
+          "totals",
+          "series"
+        ],
+        "title": "DisaggregationOut"
+      },
+      "EnergyPair": {
+        "properties": {
+          "measured_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Kwh",
+            "description": "Sub-metered ground truth"
+          },
+          "predicted_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measured_kwh",
+          "predicted_kwh"
+        ],
+        "title": "EnergyPair"
+      },
+      "EnergyShare": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "share_pct": {
+            "type": "number",
+            "title": "Share Pct",
+            "description": "Share of the whole-house energy of the window, %"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "energy_kwh",
+          "share_pct"
+        ],
+        "title": "EnergyShare"
+      },
+      "EvaluationOut": {
+        "properties": {
+          "household": {
+            "type": "string",
+            "title": "Household"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "How the numbers were obtained"
+          },
+          "mean_f1": {
+            "type": "number",
+            "title": "Mean F1"
+          },
+          "appliances": {
+            "items": {
+              "$ref": "#/components/schemas/ApplianceMetrics"
+            },
+            "type": "array",
+            "title": "Appliances"
+          },
+          "mix": {
+            "items": {
+              "$ref": "#/components/schemas/MixItem"
+            },
+            "type": "array",
+            "title": "Mix",
+            "description": "Energy mix over the whole period"
+          },
+          "quarterly_f1": {
+            "items": {
+              "$ref": "#/components/schemas/QuarterF1"
+            },
+            "type": "array",
+            "title": "Quarterly F1"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array",
+            "title": "Findings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household",
+          "method",
+          "mean_f1",
+          "appliances",
+          "mix",
+          "quarterly_f1",
+          "findings"
+        ],
+        "title": "EvaluationOut"
+      },
+      "Finding": {
+        "properties": {
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "fridge_constant_draw"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Explanation (Vietnamese)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appliance",
+          "code",
+          "text"
+        ],
+        "title": "Finding"
+      },
+      "Household": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Household id in the database; `null` if its series is not imported yet"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Plegma House 101"
+            ]
+          },
+          "dataset": {
+            "type": "string",
+            "title": "Dataset",
+            "description": "Public dataset the household comes from",
+            "examples": [
+              "Plegma"
+            ]
+          },
+          "country": {
+            "type": "string",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2",
+            "examples": [
+              "GR"
+            ]
+          },
+          "dataset_license": {
+            "type": "string",
+            "title": "Dataset License",
+            "examples": [
+              "CC BY 4.0"
+            ]
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period",
+            "description": "First and last minute with data"
+          },
+          "timezone_note": {
+            "type": "string",
+            "title": "Timezone Note"
+          },
+          "sampling_interval_seconds": {
+            "type": "integer",
+            "title": "Sampling Interval Seconds",
+            "examples": [
+              60
+            ]
+          },
+          "valid_days": {
+            "type": "number",
+            "title": "Valid Days",
+            "description": "Days with a whole-house reading",
+            "examples": [
+              426.9
+            ]
+          },
+          "missing_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Missing Pct",
+            "description": "Minutes without whole-house reading, %"
+          },
+          "aggregate_energy_kwh": {
+            "type": "number",
+            "title": "Aggregate Energy Kwh",
+            "description": "Whole-house energy over the period"
+          },
+          "metered_pct": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Metered Pct",
+            "description": "Share of that energy used by the modelled appliances, %"
+          },
+          "held_out": {
+            "type": "boolean",
+            "title": "Held Out",
+            "description": "True: no model was trained on this household"
+          },
+          "appliances": {
+            "items": {
+              "$ref": "#/components/schemas/Appliance"
+            },
+            "type": "array",
+            "title": "Appliances"
+          },
+          "sample_window": {
+            "$ref": "#/components/schemas/Window",
+            "description": "Suggested window for a first chart (a summer week)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "dataset",
+          "country",
+          "dataset_license",
+          "period",
+          "timezone_note",
+          "sampling_interval_seconds",
+          "valid_days",
+          "missing_pct",
+          "aggregate_energy_kwh",
+          "metered_pct",
+          "held_out",
+          "appliances",
+          "sample_window"
+        ],
+        "title": "Household"
+      },
+      "HouseholdOut": {
+        "properties": {
+          "household": {
+            "$ref": "#/components/schemas/Household"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household",
+          "model"
+        ],
+        "title": "HouseholdOut"
+      },
+      "HouseholdRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "appliances": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceRead"
+            },
+            "type": "array",
+            "title": "Appliances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "appliances"
+        ],
+        "title": "HouseholdRead"
+      },
+      "ImportResult": {
+        "properties": {
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "rows_per_device": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Rows Per Device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household_id",
+          "rows_per_device"
+        ],
+        "title": "ImportResult"
+      },
+      "MixItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine",
+              "Other"
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "measured_kwh": {
+            "type": "number",
+            "title": "Measured Kwh"
+          },
+          "predicted_kwh": {
+            "type": "number",
+            "title": "Predicted Kwh"
+          },
+          "measured_share_pct": {
+            "type": "number",
+            "title": "Measured Share Pct"
+          },
+          "predicted_share_pct": {
+            "type": "number",
+            "title": "Predicted Share Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "measured_kwh",
+          "predicted_kwh",
+          "measured_share_pct",
+          "predicted_share_pct"
+        ],
+        "title": "MixItem"
+      },
+      "ModelInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "NILMFormer"
+            ]
+          },
+          "parameters": {
+            "type": "integer",
+            "title": "Parameters",
+            "examples": [
+              383283
+            ]
+          },
+          "window_minutes": {
+            "type": "integer",
+            "title": "Window Minutes"
+          },
+          "sampling": {
+            "type": "string",
+            "title": "Sampling"
+          },
+          "paper": {
+            "type": "string",
+            "title": "Paper",
+            "examples": [
+              "arXiv:2506.05880"
+            ]
+          },
+          "git_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Commit"
+          },
+          "per_appliance": {
+            "items": {
+              "$ref": "#/components/schemas/ApplianceModel"
+            },
+            "type": "array",
+            "title": "Per Appliance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "parameters",
+          "window_minutes",
+          "sampling",
+          "paper",
+          "git_commit",
+          "per_appliance"
+        ],
+        "title": "ModelInfo"
+      },
+      "MonthEnergy": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "title": "Month",
+            "examples": [
+              "2023-07"
+            ]
+          },
+          "days": {
+            "type": "number",
+            "title": "Days",
+            "description": "Days with data in the month"
+          },
+          "aggregate_kwh": {
+            "type": "number",
+            "title": "Aggregate Kwh"
+          },
+          "appliances": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EnergyPair"
+            },
+            "propertyNames": {
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "Fridge",
+                "WashingMachine"
+              ]
+            },
+            "type": "object",
+            "title": "Appliances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "days",
+          "aggregate_kwh",
+          "appliances"
+        ],
+        "title": "MonthEnergy"
+      },
+      "MonthlyOut": {
+        "properties": {
+          "household": {
+            "type": "string",
+            "title": "Household"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MonthEnergy"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household",
+          "items"
+        ],
+        "title": "MonthlyOut"
+      },
+      "Period": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "Period"
+      },
+      "PowerPair": {
+        "properties": {
+          "measured_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured W"
+          },
+          "predicted_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted W"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measured_w",
+          "predicted_w"
+        ],
+        "title": "PowerPair"
+      },
+      "PowerPoint": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time",
+            "description": "Bucket start (UTC)"
+          },
+          "avg_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Power W",
+            "description": "`null`: no reading in the bucket"
+          },
+          "max_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Power W"
+          },
+          "energy_wh": {
+            "type": "number",
+            "title": "Energy Wh",
+            "description": "Energy of the minutes with data (1-minute readings / 60)"
+          },
+          "coverage": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coverage",
+            "description": "Share of the bucket's minutes with data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "avg_power_w",
+          "max_power_w",
+          "energy_wh",
+          "coverage"
+        ],
+        "title": "PowerPoint"
+      },
+      "Problem": {
+        "additionalProperties": true,
+        "description": "RFC 9457 problem details. Extension members may be added.",
+        "properties": {
+          "type": {
+            "default": "about:blank",
+            "description": "URI reference identifying the problem type",
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short, human-readable summary of the problem type",
+            "examples": [
+              "Not Found"
+            ],
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status code",
+            "examples": [
+              404
+            ],
+            "title": "Status",
+            "type": "integer"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Explanation specific to this occurrence",
+            "title": "Detail"
+          },
+          "instance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "URI reference of this occurrence (the path)",
+            "title": "Instance"
+          }
+        },
+        "required": [
+          "title",
+          "status"
+        ],
+        "title": "Problem",
+        "type": "object"
+      },
+      "QuarterF1": {
+        "properties": {
+          "appliance": {
+            "type": "string",
+            "enum": [
+              "AC",
+              "WaterHeater",
+              "Fridge",
+              "WashingMachine"
+            ],
+            "title": "Appliance"
+          },
+          "quarter": {
+            "type": "string",
+            "pattern": "^Q[1-4]/\\d{4}$",
+            "title": "Quarter",
+            "examples": [
+              "Q3/2023"
+            ]
+          },
+          "f1": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appliance",
+          "quarter",
+          "f1"
+        ],
+        "title": "QuarterF1"
+      },
+      "ReadingIn": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "power_w": {
+            "type": "number",
+            "title": "Power W"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "power_w"
+        ],
+        "title": "ReadingIn"
+      },
+      "ReadingsBulkIn": {
+        "properties": {
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingIn"
+            },
+            "type": "array",
+            "title": "Readings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readings"
+        ],
+        "title": "ReadingsBulkIn"
+      },
+      "SampleDayOut": {
+        "properties": {
+          "household": {
+            "type": "string",
+            "title": "Household"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "interval_minutes": {
+            "type": "integer",
+            "title": "Interval Minutes"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SamplePoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "household",
+          "date",
+          "interval_minutes",
+          "points"
+        ],
+        "title": "SampleDayOut"
+      },
+      "SamplePoint": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "aggregate_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate W",
+            "description": "`null`: no data in this interval"
+          },
+          "appliances": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PowerPair"
+            },
+            "propertyNames": {
+              "enum": [
+                "AC",
+                "WaterHeater",
+                "Fridge",
+                "WashingMachine"
+              ]
+            },
+            "type": "object",
+            "title": "Appliances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "aggregate_w",
+          "appliances"
+        ],
+        "title": "SamplePoint"
+      },
+      "SeriesOut": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Device Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/BucketOut"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "name",
+          "kind",
+          "points"
+        ],
+        "title": "SeriesOut"
+      },
+      "TotalOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "energy_wh": {
+            "type": "number",
+            "title": "Energy Wh"
+          },
+          "share_pct": {
+            "type": "number",
+            "title": "Share Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "energy_wh",
+          "share_pct"
+        ],
+        "title": "TotalOut"
+      },
+      "ValidationProblem": {
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "default": "about:blank",
+            "description": "URI reference identifying the problem type",
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short, human-readable summary of the problem type",
+            "examples": [
+              "Not Found"
+            ],
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status code",
+            "examples": [
+              404
+            ],
+            "title": "Status",
+            "type": "integer"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Explanation specific to this occurrence",
+            "title": "Detail"
+          },
+          "instance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "URI reference of this occurrence (the path)",
+            "title": "Instance"
+          },
+          "errors": {
+            "description": "One entry per invalid input: `loc` (where), `msg` (why), `type` (error code)",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "errors"
+        ],
+        "title": "ValidationProblem",
+        "type": "object"
+      },
+      "Window": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "1 minute",
+              "10 minutes",
+              "1 hour",
+              "1 day"
+            ],
+            "title": "Bucket"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "bucket"
+        ],
+        "title": "Window"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "demo",
+      "description": "One household, precomputed results only (no model run).",
+      "kind": "nav",
+      "summary": "Demo"
+    },
+    {
+      "name": "demo-household",
+      "description": "Who the household is and which models produced its results.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Household"
+    },
+    {
+      "name": "demo-consumption",
+      "description": "Predicted power and energy per appliance (from the database).",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Consumption"
+    },
+    {
+      "name": "demo-evaluation",
+      "description": "Predictions compared with the household's sub-metered ground truth.",
+      "parent": "demo",
+      "kind": "nav",
+      "summary": "Evaluation"
+    },
+    {
+      "name": "platform",
+      "description": "General endpoints, not tied to the demo household.",
+      "kind": "nav",
+      "summary": "Platform"
+    },
+    {
+      "name": "health",
+      "parent": "platform",
+      "kind": "nav",
+      "summary": "Health"
+    },
+    {
+      "name": "devices",
+      "description": "Meters: a household (`aggregate`) and its appliances.",
+      "parent": "platform",
+      "kind": "nav",
+      "summary": "Devices"
+    },
+    {
+      "name": "readings",
+      "description": "Raw power readings of a device, bucketed on read.",
+      "parent": "platform",
+      "kind": "nav",
+      "summary": "Readings"
+    },
+    {
+      "name": "disaggregation",
+      "description": "Import NILM results, read them per household, or run the model live.",
+      "parent": "platform",
+      "kind": "nav",
+      "summary": "Disaggregation"
+    }
+  ]
+}

@@ -46,72 +46,110 @@ curl localhost:8001/api/v1/health      # -> {"status":"ok","timescaledb":"2.x"}
 Tài liệu API: `http://<server>:8001/docs`. Test (tùy chọn):
 `docker compose run --rm --no-deps backend sh -c "uv sync --group dev && pytest -q"`.
 
-### 3. Dữ liệu REFIT (không nằm trong git)
+### 3. Dữ liệu (không nằm trong git)
 
-Tải `CLEAN_REFIT_081116.7z` (490MB) từ <https://pureportal.strath.ac.uk/en/datasets/refit-electrical-load-measurements-cleaned>
-(server tải trực tiếp hay bị chặn → tải trên máy cá nhân rồi copy sang), giải nén, đặt **20 file** `CLEAN_House*.csv` vào:
+**REFIT** (thiết bị paper): tải `CLEAN_REFIT_081116.7z` (490MB) từ
+<https://pureportal.strath.ac.uk/en/datasets/refit-electrical-load-measurements-cleaned> (server tải trực tiếp hay bị chặn
+→ tải trên máy cá nhân rồi copy sang), giải nén **20 file** `CLEAN_House*.csv` vào:
 
 ```
 nilmformer-experiment/NILMFormer/data/REFIT/RAW_DATA_CLEAN/
-├── HOUSES_Labels          # đã có sẵn trong git
+├── HOUSES_Labels          # có sẵn trong git
 ├── CLEAN_House1.csv ... CLEAN_House21.csv   # (không có nhà 14)
 ```
 
-Ví dụ copy từ máy cá nhân: `rsync -avP CLEAN_REFIT_081116/*.csv user@server:~/project-wattprint/nilmformer-experiment/NILMFormer/data/REFIT/RAW_DATA_CLEAN/`
+**Plegma + PRECON** (chỉ để train AC, bình nóng lạnh; Plegma 101 là hộ phục vụ backend):
+
+```bash
+cd ..                    # về thư mục gốc repo (bước 2 đang ở backend/)
+D=nilmformer-experiment/NILMFormer/data/_raw
+# Plegma: tải PlegmaDataset_Clean.7z bằng trình duyệt (server bị chặn) từ
+#   https://doi.org/10.15129/3b01a6c6-2efd-424a-b8b8-5fe7fa445ded , copy lên rồi:
+7z x -o$D/plegma PlegmaDataset_Clean.7z 'Clean_Dataset/House_*/Electric_data/*'
+# PRECON: server tải trực tiếp được
+mkdir -p $D/precon && cd $D/precon && wget http://web.lums.edu.pk/~eig/precon_files/PRECON.zip \
+  http://web.lums.edu.pk/~eig/precon_files/Metadata.csv && unzip PRECON.zip && rm PRECON.zip && cd -
+```
 
 ### 4. Kiểm tra trước khi train dài (vài phút)
 
 ```bash
-cd ../nilmformer-experiment
-cp .env.example .env
+cd nilmformer-experiment
+cp .env.example .env     # sửa INFERENCE_PORT nếu cổng bận
 make build
-make validate            # phải ra "12/12 checks passed"
+make convert             # Plegma, PRECON -> layout REFIT (vài phút, 1 lần)
+make validate            # phải ra "13/13 checks passed"
 ```
 
-Lỗi hay gặp: `gpu` FAIL → driver / NVIDIA Container Toolkit; `data files` FAIL → thiếu CSV ở bước 3.
+Lỗi hay gặp: `gpu` FAIL → driver / NVIDIA Container Toolkit; `data files` FAIL → thiếu CSV REFIT;
+`extra appliances` FAIL → chưa `make convert`.
 
 ### 5. Train (paper: 50 epoch, early stopping)
 
 ```bash
-make train               # 4 model (Kettle, Microwave, Dishwasher, WashingMachine) song song
+make train               # Kettle, Microwave, Dishwasher, WashingMachine song song
+make train-extra         # Fridge, TumbleDryer, AC, WaterHeater
 ```
 
 Chạy lâu → dùng `tmux`/`screen` hoặc `nohup make train &`. Theo dõi: `tail -f artifacts/train_Kettle.log`.
-Kết quả: `artifacts/models/REFIT_<App>_NILMFormer.pt`. Nếu muốn train thêm: `make resume` (+20 epoch).
+Kết quả: `artifacts/models/REFIT_<App>_NILMFormer.pt`. Nếu muốn train thêm: `make resume APPS="AC"` (+20 epoch).
 Lần chạy đầu mất thêm vài phút để tiền xử lý dữ liệu (được cache trong `artifacts/cache/`).
+Thiết bị nào train trên nhà nào: [`nilmformer-experiment/README.md`](nilmformer-experiment/README.md#thiết-bị--dữ-liệu-pipelineappliancesyaml).
 
-### 6. Phân rã 1 hộ + hậu xử lý
+### 6. Phân rã hộ phục vụ + hậu xử lý
+
+Backend chỉ phục vụ **1 hộ: Plegma 101** (không model nào train trên nhà này; có AC, bình nóng lạnh, tủ lạnh, máy giặt).
+Model chỉ chạy cho thiết bị hộ có.
 
 ```bash
-make all-outputs         # predict nhà test (2) & valid (9) -> tune ngưỡng trên nhà valid -> postprocess nhà test
-cat artifacts/outputs/house_2_disaggregation_metrics.json
+make all-outputs         # predict hộ 101 & valid 103 -> tune ngưỡng trên 103 -> postprocess 101
+cat artifacts/outputs/house_101_disaggregation_metrics.json
 ```
 
 Chưa ưng kết quả → **không cần train lại**: sửa `pipeline/postprocess.yaml` rồi `make postprocess` (vài giây).
-Đổi nhà: `make all-outputs TEST_HOUSE=15 VALID_HOUSE=3` (nhà phải có đủ 4 thiết bị: 2, 3, 6, 9, 13, 15).
+Đánh giá model paper trên REFIT: `make all-outputs TEST_HOUSE=2 VALID_HOUSE=9`.
 
 ### 7. Đưa vào backend
 
 ```bash
-curl -X POST "http://localhost:8001/api/v1/households/import?household=REFIT%20House%202" \
-     -F "file=@artifacts/outputs/house_2_disaggregation.csv"
+curl -X POST "http://localhost:8001/api/v1/households/import?household=Plegma%20House%20101" \
+     -F "file=@artifacts/outputs/house_101_disaggregation.csv"          # vài phút
 # -> {"household_id":"<uuid>","rows_per_device":{...}}
 
 curl "http://localhost:8001/api/v1/households"      # lấy id
-curl "http://localhost:8001/api/v1/households/<uuid>/disaggregation?start=2014-01-01T00:00:00Z&end=2014-01-08T00:00:00Z&bucket=1%20hour"
+curl "http://localhost:8001/api/v1/households/<uuid>/disaggregation?start=2023-07-10T00:00:00Z&end=2023-07-17T00:00:00Z&bucket=1%20hour"
 ```
 
-Kết quả gồm chuỗi theo từng thiết bị (+ `Other` = phần còn lại), tổng Wh và % tiêu thụ.
+Kết quả gồm chuỗi theo từng thiết bị (+ `Other` = phần còn lại), tổng Wh và % tiêu thụ. Dữ liệu hộ 101: 07/2022 – 09/2023.
 Import lại cùng file sẽ ghi đè (không nhân đôi dữ liệu).
 
-### 8. Inference API (tùy chọn)
+### 7b. API demo (1 hộ, kết quả có sẵn, không chạy model)
+
+Mọi kết quả đều đã tính sẵn từ thực nghiệm: chuỗi dự đoán lấy từ DB (bước 7), phần đánh giá so với số đo thật lấy từ
+`backend/app/demo/plegma_101.json`. Không cần id hay tham số, mỗi lời gọi trả về trong khoảng 5–400 ms.
+
+| API | Trả về |
+|---|---|
+| `GET /api/v1/demo/household` | Hồ sơ hộ (dataset, thời gian, thiết bị, cửa sổ gợi ý) và thông tin model |
+| `GET /api/v1/demo/consumption?start=&end=&bucket=` | Công suất tổng + dự đoán từng thiết bị, kèm kWh và %. Mặc định: tuần 10–17/07/2023, theo giờ |
+| `GET /api/v1/demo/breakdown?start=&end=` | kWh và % từng thiết bị. Mặc định: cả kỳ |
+| `GET /api/v1/demo/evaluation` | F1, MAE, SAE... từng thiết bị, cơ cấu thật/dự đoán, F1 theo quý, nhận xét |
+| `GET /api/v1/demo/evaluation/monthly` · `/daily?start=&end=` | kWh thật và dự đoán theo tháng / theo ngày |
+| `GET /api/v1/demo/evaluation/sample-day` | Ngày 12/07/2023, 10 phút một điểm, công suất thật và dự đoán |
+
+Tài liệu: OpenAPI **3.2.0** tại `/api/v1/openapi.json` (bản lưu: `backend/openapi.json`), Swagger UI tại `/docs`.
+Lỗi trả theo RFC 9457 (`application/problem+json`). Sau khi train lại: `make paper-data demo-snapshot` trong
+`nilmformer-experiment/`, rồi `docker compose up -d --build backend` và
+`docker compose exec backend python -m app.openapi_export > openapi.json`.
+
+### 8. Inference API
 
 ```bash
 make serve                                          # trong nilmformer-experiment, cổng 8002
-curl localhost:8002/health
+curl localhost:8002/health                          # appliances = NILM_APPS trong .env (thiết bị của hộ 101)
 # qua backend (backend tự gọi service này; NILM_SERVICE_URL trong backend/.env):
 curl -X POST localhost:8001/api/v1/disaggregate -H 'content-type: application/json' \
-     -d '{"start":"2014-01-01T00:00:00","power_w":[...ít nhất 128 giá trị, mỗi phút 1 giá trị, null = thiếu...]}'
+     -d '{"start":"2023-07-10T00:00:00","power_w":[...ít nhất 128 giá trị, mỗi phút 1 giá trị, null = thiếu...]}'
 ```
 
 ### Cổng & bảo mật

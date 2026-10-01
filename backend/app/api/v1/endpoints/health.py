@@ -7,7 +7,7 @@ from app.core.database import get_session
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/health", operation_id="getHealth")
 async def health(session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         text("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")

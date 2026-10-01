@@ -17,7 +17,8 @@ from app.services import disaggregation as svc
 router = APIRouter(tags=["disaggregation"])
 
 
-@router.get("/households", response_model=list[HouseholdRead])
+@router.get("/households", response_model=list[HouseholdRead],
+            operation_id="listHouseholds")
 async def list_households(session: AsyncSession = Depends(get_session)):
     houses = (
         await session.scalars(
@@ -35,7 +36,8 @@ async def list_households(session: AsyncSession = Depends(get_session)):
     return out
 
 
-@router.post("/households/import", response_model=ImportResult, status_code=201)
+@router.post("/households/import", response_model=ImportResult, status_code=201,
+             operation_id="importHouseholdDisaggregation")
 async def import_disaggregation(
     household: str,
     file: UploadFile = File(..., description="CSV from nilmformer-experiment outputs"),
@@ -49,7 +51,8 @@ async def import_disaggregation(
     return ImportResult(household_id=house.id, rows_per_device=counts)
 
 
-@router.get("/households/{household_id}/disaggregation", response_model=DisaggregationOut)
+@router.get("/households/{household_id}/disaggregation", response_model=DisaggregationOut,
+            operation_id="getHouseholdDisaggregation")
 async def get_disaggregation(
     household_id: uuid.UUID,
     start: datetime,
@@ -66,7 +69,7 @@ async def get_disaggregation(
     )
 
 
-@router.post("/disaggregate")
+@router.post("/disaggregate", operation_id="disaggregateLive")
 async def disaggregate(body: DisaggregateIn):
     """Whole-house power in, per-appliance power out. Proxies to the NILM inference service."""
     try:

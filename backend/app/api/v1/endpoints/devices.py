@@ -11,7 +11,8 @@ from app.schemas.device import DeviceCreate, DeviceRead
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
-@router.post("", response_model=DeviceRead, status_code=201)
+@router.post("", response_model=DeviceRead, status_code=201,
+             operation_id="createDevice")
 async def create_device(body: DeviceCreate, session: AsyncSession = Depends(get_session)):
     device = Device(**body.model_dump())
     session.add(device)
@@ -20,12 +21,12 @@ async def create_device(body: DeviceCreate, session: AsyncSession = Depends(get_
     return device
 
 
-@router.get("", response_model=list[DeviceRead])
+@router.get("", response_model=list[DeviceRead], operation_id="listDevices")
 async def list_devices(session: AsyncSession = Depends(get_session)):
     return (await session.scalars(select(Device).order_by(Device.created_at))).all()
 
 
-@router.get("/{device_id}", response_model=DeviceRead)
+@router.get("/{device_id}", response_model=DeviceRead, operation_id="getDevice")
 async def get_device(device_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     device = await session.get(Device, device_id)
     if not device:

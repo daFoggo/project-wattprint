@@ -22,7 +22,7 @@ async def _device_or_404(session: AsyncSession, device_id: uuid.UUID) -> Device:
     return device
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, operation_id="createReadings")
 async def ingest(
     device_id: uuid.UUID, body: ReadingsBulkIn, session: AsyncSession = Depends(get_session)
 ):
@@ -30,7 +30,7 @@ async def ingest(
     return {"inserted": await svc.bulk_insert(session, device_id, body.readings)}
 
 
-@router.get("", response_model=list[BucketOut])
+@router.get("", response_model=list[BucketOut], operation_id="listReadings")
 async def query(
     device_id: uuid.UUID,
     start: datetime,
