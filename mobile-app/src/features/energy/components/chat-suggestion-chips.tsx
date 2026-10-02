@@ -8,19 +8,16 @@ import { SuggestionChipsSkeleton } from '@/features/energy/components/chat-skele
 
 const MAX_CHIPS = 3;
 
-function Chips({
+function ChipRow({
+  items,
   onPick,
-  asked,
 }: {
+  items: CopilotSuggestion[];
   onPick: (suggestion: CopilotSuggestion) => void;
-  asked: string[];
 }) {
-  const { data } = useSuggestions();
-  const visible = data.filter((sg) => !asked.includes(sg.question)).slice(0, MAX_CHIPS);
-  if (visible.length === 0) return null;
   return (
     <View style={styles.row}>
-      {visible.map((sg) => (
+      {items.map((sg) => (
         <Pressable
           key={sg.intent}
           onPress={() => onPick(sg)}
@@ -32,20 +29,48 @@ function Chips({
   );
 }
 
-/** Tối đa 3 câu hỏi gợi ý từ backend, theo thứ tự trả về; chạm một câu để hỏi ngay. */
+function GenericChips({
+  onPick,
+  asked,
+}: {
+  onPick: (suggestion: CopilotSuggestion) => void;
+  asked: string[];
+}) {
+  const { data } = useSuggestions();
+  const visible = data.filter((sg) => !asked.includes(sg.question)).slice(0, MAX_CHIPS);
+  if (visible.length === 0) return null;
+  return <ChipRow items={visible} onPick={onPick} />;
+}
+
+/**
+ * Tối đa 3 câu hỏi gợi ý; chạm một câu để hỏi ngay. `items` là gợi ý nối tiếp theo câu trả lời vừa
+ * rồi (từ backend); không có thì dùng danh sách chung, bỏ câu đã hỏi.
+ */
 export function ChatSuggestionChips({
   onPick,
   asked = [],
+  items,
 }: {
   onPick: (suggestion: CopilotSuggestion) => void;
+  /** Gợi ý nối tiếp của câu trả lời cuối. */
+  items?: CopilotSuggestion[];
   /** Câu đã hỏi trong cuộc hội thoại này; không gợi ý lại. */
   asked?: string[];
 }) {
+  const own = items?.filter((sg) => !asked.includes(sg.question)).slice(0, MAX_CHIPS);
+  if (own && own.length > 0) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.header}>HỎI TIẾP</Text>
+        <ChipRow items={own} onPick={onPick} />
+      </View>
+    );
+  }
   return (
     <View style={styles.wrap}>
       <Text style={styles.header}>CÂU HỎI GỢI Ý</Text>
       <QueryBoundary fallback={<SuggestionChipsSkeleton />} errorMessage="Không tải được câu hỏi gợi ý.">
-        <Chips onPick={onPick} asked={asked} />
+        <GenericChips onPick={onPick} asked={asked} />
       </QueryBoundary>
     </View>
   );

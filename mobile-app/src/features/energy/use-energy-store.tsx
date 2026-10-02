@@ -24,10 +24,16 @@ import type {
 
 const STORAGE_KEY = 'wattprint.assistant.v1';
 export const NEW_THREAD_TITLE = 'Cuộc hội thoại mới';
+/**
+ * Hai cuộc hội thoại có sẵn để danh sách không trống: câu trả lời thật của backend, đặt giờ cũ hơn
+ * một chút (3 giờ và 1 ngày trước). Cuộc hội thoại mới vẫn bắt đầu bằng lời chào + gợi ý.
+ */
+const SAMPLE_THREADS: { intent: CopilotIntent; ageMs: number }[] = [
+  { intent: 'saving_plan', ageMs: 3 * 3_600_000 },
+  { intent: 'month_compare', ageMs: 26 * 3_600_000 },
+];
 export const GREETING =
   'Xin chào. Tôi trả lời bằng số liệu điện của chính nhà bạn: tiền điện và bậc giá, dự báo cuối tháng, thiết bị tốn điện nhất, điều hoà, bình nóng lạnh, tủ lạnh và tải chạy nền. Bạn muốn xem gì?';
-/** Câu hỏi của các cuộc hội thoại mẫu: trả lời thật từ backend khi mở app lần đầu. */
-const EXAMPLE_INTENTS: CopilotIntent[] = ['saving_plan', 'month_compare', 'top_appliance'];
 const FAILED_TEXT = 'Chưa lấy được câu trả lời từ máy chủ. Kiểm tra kết nối rồi hỏi lại nhé.';
 
 /** Những gì giữ lại giữa các lần mở app: cuộc hội thoại, thử nghiệm đang chạy và đã xong. */
@@ -36,7 +42,7 @@ interface Persisted {
   activeExperiment: ActiveExperiment | null;
   experimentLogs: ExperimentLogItem[];
   alertPrefs: AlertPrefs;
-  /** Đã tạo sẵn các cuộc hội thoại mẫu chưa (chỉ làm một lần, trừ khi xoá dữ liệu trên máy). */
+  /** Đã tạo hai cuộc hội thoại có sẵn chưa (làm lại sau khi xoá dữ liệu trên máy). */
   seeded: boolean;
 }
 
@@ -92,6 +98,7 @@ function aiMessage(a: CopilotAnswer): ChatMessage {
     text: a.text,
     facts: a.facts.map((f) => ({ k: f.label, v: f.value })),
     action: a.action,
+    followUps: a.follow_ups,
   };
 }
 
@@ -143,30 +150,32 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
   }, [hydrated, threads, activeExperiment, experimentLogs, alertPrefs, seeded]);
 
-  // Lần đầu (hoặc sau khi xoá dữ liệu): tạo vài cuộc hội thoại mẫu bằng câu trả lời thật của backend
+  // Lần đầu (và sau khi xoá dữ liệu): lấy câu trả lời thật của backend cho hai cuộc có sẵn
   useEffect(() => {
     if (!hydrated || seeded) return;
     let alive = true;
-    Promise.allSettled(EXAMPLE_INTENTS.map((intent) => askCopilot({ intent }))).then((results) => {
-      if (!alive) return;
-      const now = Date.now();
-      const made: ChatThread[] = [];
-      results.forEach((r, i) => {
-        if (r.status !== 'fulfilled') return;
-        const a = r.value;
-        made.push({
-          id: uid('thread'),
-          title: a.question,
-          category: a.category,
-          period: a.period,
-          updatedAt: now - i * 1000, // giữ đúng thứ tự khi xếp theo thời gian
-          messages: [{ id: uid('me'), who: 'me', text: a.question }, aiMessage(a)],
+    void Promise.allSettled(SAMPLE_THREADS.map((t) => askCopilot({ intent: t.intent }))).then(
+      (results) => {
+        if (!alive) return;
+        const now = Date.now();
+        const made: ChatThread[] = [];
+        results.forEach((r, i) => {
+          if (r.status !== 'fulfilled') return;
+          const a = r.value;
+          made.push({
+            id: uid('thread'),
+            title: a.question,
+            category: a.category,
+            period: a.period,
+            updatedAt: now - SAMPLE_THREADS[i].ageMs,
+            messages: [{ id: uid('me'), who: 'me', text: a.question }, aiMessage(a)],
+          });
         });
-      });
-      if (made.length === 0) return; // không có mạng: thử lại ở lần mở sau
-      setThreads((prev) => [...prev, ...made]);
-      setSeeded(true);
-    });
+        if (made.length === 0) return; // chưa có mạng: thử lại ở lần mở sau
+        setThreads((prev) => [...prev, ...made]);
+        setSeeded(true);
+      }
+    );
     return () => {
       alive = false;
     };
@@ -183,7 +192,7 @@ export function EnergyStoreProvider({ children }: PropsWithChildren) {
     setExperimentLogs([]);
     setExperimentDraft(null);
     setAlertPrefs(DEFAULT_ALERT_PREFS);
-    setSeeded(false); // tạo lại các cuộc hội thoại mẫu
+    setSeeded(false); // tạo lại hai cuộc hội thoại có sẵn
   }, []);
 
   const toggleUnit = useCallback(() => setUnit((prev) => (prev === 'kwh' ? 'cost' : 'kwh')), []);

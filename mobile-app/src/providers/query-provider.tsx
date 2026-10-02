@@ -19,7 +19,8 @@ export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 1000 * 60 * 5,
+        // số liệu demo gắn với một mốc cố định, không đổi theo thời gian: coi là mới trong 1 giờ
+        staleTime: 1000 * 60 * 60,
         // phải >= maxAge của persister, nếu không dữ liệu đã lưu bị xoá khỏi cache trước khi khôi phục
         gcTime: ONE_WEEK,
         retry: (failureCount, error) => {
@@ -28,7 +29,7 @@ export function makeQueryClient() {
           }
           return failureCount < 2;
         },
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
       },
       mutations: {

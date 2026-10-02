@@ -21,7 +21,7 @@ interface UsageComparisonSectionProps {
  * So sánh theo tháng + gợi ý Copilot. Tách thành module nạp theo nhu cầu (`React.lazy`) vì nằm cuối
  * trang và nặng (biểu đồ SVG): màn hình vẽ phần trên trước.
  */
-export default function UsageComparisonSection({ monthOffset, unit }: UsageComparisonSectionProps) {
+export function UsageComparisonSection({ monthOffset, unit }: UsageComparisonSectionProps) {
   const router = useRouter();
   const { openInsightThread } = useEnergyStore();
   const { data: monthly } = useUsage('month', monthOffset);

@@ -1,13 +1,15 @@
 """Demo copilot: suggested questions and answers computed from the household's series."""
+import asyncio
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.billing_params import plan_params
 from app.api.v1.endpoints.demo import INVALID, NOT_READY, _hid, _names, _snap, _utc
 from app.billing.tariffs import Plan
 from app.core import cache
+from app.core.config import settings
 from app.core.database import get_session
 from app.schemas import copilot as s
 from app.services import copilot as svc
@@ -44,16 +46,24 @@ async def list_suggestions(asof: datetime | None = ASOF, plan: Plan = Depends(pl
                 "by keywords. The text is built from the figures in `facts`, which come from the "
                 "same queries as the usage, billing and insights endpoints. A question the "
                 "copilot cannot answer from the data gets `intent: unknown` and a list of what "
-                "can be asked. There is no language model and no weather.",
+                "can be asked. There is no language model and no weather. Replies are held back "
+                "about one to four seconds (`COPILOT_LATENCY_SCALE`), so the chat feels like one.",
     responses={200: {"summary": "Answer"}, 404: NOT_READY, 422: INVALID},
 )
 async def ask(body: s.AskIn, asof: datetime | None = ASOF, plan: Plan = Depends(plan_params),
-              session: AsyncSession = Depends(get_session)):
+              session: AsyncSession = Depends(get_session),
+              x_warmup: str | None = Header(None, include_in_schema=False)):
     key = f"ask|{body.intent}|{(body.question or '').strip()}|{asof}|{plan}"
-    cached = cache.memo_get(key)
-    if cached is not None:
-        return cached
-    ctx = svc.Ctx(session, await _hid(session), _asof(asof), plan, _names())
-    answer = await svc.answer(ctx, body.question, body.intent)
-    cache.memo_set(key, answer)
+    answer = cache.memo_get(key)
+    if answer is None:
+        ctx = svc.Ctx(session, await _hid(session), _asof(asof), plan, _names())
+        answer = await svc.answer(ctx, body.question, body.intent)
+        cache.memo_set(key, answer)
+    if not x_warmup:  # the pause is for people; the start-up warm-up skips it
+        await asyncio.sleep(_pause(answer.text))
     return answer
+
+
+def _pause(text: str) -> float:
+    """Seconds to hold a reply back so it reads like an assistant thinking, not a lookup."""
+    return settings.COPILOT_LATENCY_SCALE * min(1.2 + 0.005 * len(text), 4.0)

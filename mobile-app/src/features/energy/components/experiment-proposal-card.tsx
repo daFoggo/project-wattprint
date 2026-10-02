@@ -61,7 +61,7 @@ function ProposalCard({ proposal, onPress }: { proposal: ExperimentProposal; onP
             </View>
           )}
           <Text style={[styles.tag, isScenario && styles.tagScenario, featured && styles.tagFeatured]}>
-            {isScenario ? `KỊCH BẢN · ${proposal.appliances.length} THIẾT BỊ` : 'THỬ NGHIỆM ĐƠN'}
+            {isScenario ? `${proposal.appliances.length} THIẾT BỊ` : 'THỬ NGHIỆM ĐƠN'}
           </Text>
         </View>
         <ChevronRight

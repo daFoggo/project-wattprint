@@ -1,4 +1,4 @@
-import React, { lazy, useDeferredValue, useState } from 'react';
+import React, { useDeferredValue, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,14 +13,13 @@ import { useEnergyStore } from '@/features/energy/use-energy-store';
 
 import { UsageBreakdownSection } from './components/usage-breakdown-section';
 import { UsageChartSection } from './components/usage-chart-section';
+import { UsageComparisonSection } from './components/usage-comparison-section';
 import {
   UsageBreakdownSkeleton,
   UsageChartSkeleton,
   UsageComparisonSkeleton,
 } from './components/usage-skeletons';
 
-// Nạp theo nhu cầu: phần cuối trang (so sánh tháng + Copilot) chỉ được đánh giá module khi cần.
-const UsageComparisonSection = lazy(() => import('./components/usage-comparison-section'));
 
 const TABS: { key: UsageTab; label: string }[] = [
   { key: 'day', label: 'NGÀY' },
@@ -57,7 +56,6 @@ export function UsageScreen() {
   // được nạp trước (song song với animation) nên màn đẩy vào đã có nội dung, không nhấp nháy.
   const openDevice = (device: BubbleDevice) => {
     setActiveDeviceDetail(device);
-    void import('@/screens/device-detail/index');
     void queryClient.prefetchQuery(deviceUsageQueryOptions(device.id, 'month', 0));
     router.push('/usage/device');
   };

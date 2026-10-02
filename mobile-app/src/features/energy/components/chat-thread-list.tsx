@@ -11,6 +11,7 @@ import {
 import { Fonts, WattPrintTokens } from '@/constants/theme';
 import type { CopilotSuggestion } from '@/features/energy/api';
 import { dotColorOf, groupOf, metaOf, type ThreadGroup } from '@/features/energy/chat-format';
+import { GREETING } from '@/features/energy/use-energy-store';
 import { ChatSuggestionChips } from '@/features/energy/components/chat-suggestion-chips';
 import type { ChatThread } from '@/features/energy/types';
 
@@ -66,10 +67,11 @@ export function ChatThreadList({
 
         {isEmpty ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Chưa có cuộc hội thoại nào</Text>
-            <Text style={styles.emptyBody}>
-              Hỏi về tiền điện, bậc giá hay thiết bị trong nhà. Chạm một câu gợi ý để bắt đầu.
-            </Text>
+            <View style={styles.greeting}>
+              <Text style={styles.greetingLabel}>TRỢ LÝ AI</Text>
+              <Text style={styles.greetingText}>{GREETING}</Text>
+            </View>
+            <Text style={styles.emptyBody}>Chạm một câu gợi ý để bắt đầu trò chuyện.</Text>
             <ChatSuggestionChips onPick={onPickSuggestion} />
           </View>
         ) : (
@@ -171,6 +173,24 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   empty: { gap: 14, paddingTop: 8 },
+  greeting: {
+    backgroundColor: WattPrintTokens.colors.neutralGround,
+    borderRadius: WattPrintTokens.radii.xl,
+    padding: 18,
+    gap: 8,
+  },
+  greetingLabel: {
+    fontFamily: Fonts.monoMedium,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    color: WattPrintTokens.colors.accentDeep,
+  },
+  greetingText: {
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    lineHeight: 24,
+    color: WattPrintTokens.colors.primary,
+  },
   emptyTitle: {
     fontFamily: Fonts.sansSemiBold,
     fontSize: 18,

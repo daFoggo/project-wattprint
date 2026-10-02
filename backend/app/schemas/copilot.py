@@ -53,3 +53,7 @@ class Answer(BaseModel):
     text: str = Field(description="Answer in Vietnamese, built from the figures in `facts`")
     facts: list[Fact]
     action: Action | None = None
+    follow_ups: list[Suggestion] = Field(
+        default_factory=list,
+        description="What to ask next, chosen from this answer: up to 3, never the question just "
+                    "answered")

@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -5,12 +8,20 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from app.api.v1.router import api_router
 from app.core import openapi, problems
 from app.core.cache import DemoCacheMiddleware
+from app.core.warmup import warm
 from app.core.config import settings
 
 # this Swagger UI release renders OpenAPI 3.2; pinned so the docs keep matching the document
 SWAGGER_UI = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.0"
 
-app = FastAPI(title=settings.PROJECT_NAME, version=openapi.VERSION,
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(warm(app))  # computed in the background, never blocks start-up
+    yield
+    task.cancel()
+
+
+app = FastAPI(title=settings.PROJECT_NAME, version=openapi.VERSION, lifespan=lifespan,
               openapi_url=f"{settings.API_V1_PREFIX}/openapi.json", docs_url=None, redoc_url=None)
 
 if settings.BACKEND_CORS_ORIGINS:

@@ -79,9 +79,10 @@ section owns its own Suspense + error boundary. A page is a static shell plus in
 - **Tier 4, refetch / switching ranges**: urgent state (tab highlight) updates at once, the data key
   uses `useDeferredValue`, so the old content stays on screen (dimmed to 55 %) until the new one is
   ready. Never swap loaded content for a skeleton on a range change.
-- **Splitting**: below-the-fold or on-demand pieces are `React.lazy(() => import(...))` inside a
-  `QueryBoundary` whose fallback is that piece's skeleton (e.g. usage comparison card, device detail
-  overlay). One section per file: `screens/<page>/components/<name>-section.tsx`.
+- **Splitting**: one section per file: `screens/<page>/components/<name>-section.tsx`. Do **not** use
+  `React.lazy` / `import()` for in-app modules: Metro does not split native production bundles, and in
+  dev every `import()` is a separate Metro bundling request (a 1.5 s skeleton the first time).
+  Inline requires already keep unused modules from being evaluated.
 - Prefetch the ranges a user is likely to open next with `queryClient.prefetchQuery(xQueryOptions(...))`.
 
 ## Page transitions
@@ -94,3 +95,20 @@ section owns its own Suspense + error boundary. A page is a static shell plus in
 - Before `router.push`, warm what the next page needs so it has content when the animation ends:
   `void import('<screen module>')` and `queryClient.prefetchQuery(...)`. Pass only view state
   (range, offset) as route params; the chosen entity travels in the energy store.
+
+## Performance rules (measured on device)
+
+- **Tabs mount lazily.** `NativeTabs` renders every tab at launch, so five screens rendered and fetched
+  at once. Wrap each tab (route or `_layout.tsx`) in `components/common/lazy-tab.tsx` (`<LazyTab>`): it
+  mounts its children on the tab's first focus and keeps them afterwards. Home is the only exception.
+- **Prefetch after the first paint.** `prefetchAppData` (features/energy/api.ts) loads the other tabs'
+  queries one by one once Home is interactive (`InteractionManager.runAfterInteractions`), so opening a
+  tab shows data at once. New screens that read the API add their query options there.
+- **Demo data is immutable.** Queries are fresh for 1 hour and do not refetch on focus; bump
+  `CACHE_VERSION` when a response changes shape. Do not add refetch-on-focus hooks.
+- **Backend**: demo answers are cached in process (`app/core/cache.py`, key ignores parameter order and
+  the spelling of instants) and the answers the app asks for first are computed at start-up
+  (`app/core/warmup.py`, `DEMO_WARM_ASOF`). A new endpoint the app calls at launch should be added to
+  `warmup.urls()`. Appliance runs are found in SQL (`insights.runs`), never by pulling minute rows.
+- Measure on the device before and after (`adb shell dumpsys gfxinfo`, `meminfo`; `adb shell monkey`
+  for ANRs). The dev client uses ~2x the memory of a release build, so judge absolute numbers carefully.

@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
 
+import { LazyTab } from '@/components/common/lazy-tab';
+
 import { WattPrintTokens } from '@/constants/theme';
 
 // Mở thẳng vào /usage/device (từ Trang chủ) vẫn có màn Tiêu thụ bên dưới để quay lại.
@@ -12,20 +14,22 @@ export const unstable_settings = { initialRouteName: 'index' };
  */
 export default function UsageLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: {
-          backgroundColor: WattPrintTokens.colors.neutralGround,
-        },
-        animation: 'ios_from_right',
-        gestureEnabled: true,
-        fullScreenGestureEnabled: true,
-        freezeOnBlur: true,
-      }}
-    >
-      <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: '#FFFFFF' } }} />
-      <Stack.Screen name="device" />
-    </Stack>
+    <LazyTab>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: WattPrintTokens.colors.neutralGround,
+          },
+          animation: 'ios_from_right',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          freezeOnBlur: true,
+        }}
+      >
+        <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: '#FFFFFF' } }} />
+        <Stack.Screen name="device" />
+      </Stack>
+    </LazyTab>
   );
 }

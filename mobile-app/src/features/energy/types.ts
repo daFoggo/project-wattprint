@@ -1,4 +1,4 @@
-import type { ExperimentAppliance } from './api';
+import type { CopilotSuggestion, ExperimentAppliance } from './api';
 
 export type TariffPlan = 'tiered' | 'tou';
 
@@ -72,6 +72,8 @@ export interface ChatMessage {
   facts?: ChatFact[];
   /** Việc trợ lý đề nghị làm tiếp, vd mở một thử nghiệm. */
   action?: ChatAction | null;
+  /** Câu nên hỏi tiếp sau câu trả lời này; để trống thì dùng danh sách gợi ý chung. */
+  followUps?: CopilotSuggestion[];
   /** `pending`: đang chờ câu trả lời; `failed`: không lấy được câu trả lời. */
   state?: 'pending' | 'failed';
 }

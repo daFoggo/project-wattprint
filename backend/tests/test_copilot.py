@@ -11,6 +11,12 @@ NOW = "2023-08-31T23:59:00Z"
 BASE = "/api/v1/demo"
 
 
+@pytest.fixture(autouse=True)
+def no_pause(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "COPILOT_LATENCY_SCALE", 0.0)
+
+
 @pytest.fixture
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
@@ -148,3 +154,46 @@ async def test_proposals_include_scenarios_over_several_appliances(client):
 async def test_one_proposal_is_featured_and_first(client):
     items = (await call(client, "GET", "experiments/proposals", params={"asof": NOW})).json()["items"]
     assert items[0]["featured"] and not any(p["featured"] for p in items[1:])
+
+
+def test_cache_key_ignores_parameter_order_and_instant_spelling():
+    from app.core.cache import key_of
+
+    a = key_of("/api/v1/demo/usage", [("range", "week"), ("asof", "2023-08-31T23:59:00.000Z"), ("offset", "0")])
+    b = key_of("/api/v1/demo/usage", [("offset", "0"), ("asof", "2023-08-31T23:59:00Z"), ("range", "week")])
+    assert a == b
+    assert key_of("/x", [("asof", "2023-08-31T23:59:00Z")]) != key_of("/x", [("asof", "2023-08-31T23:58:00Z")])
+    assert key_of("/x", [("customer", "household")]) == "/x?customer=household"  # text is left alone
+
+
+def test_the_pause_grows_with_the_answer_and_is_capped():
+    from app.api.v1.endpoints.demo_copilot import _pause
+    from app.core.config import settings
+
+    settings.COPILOT_LATENCY_SCALE = 1.0
+    try:
+        assert _pause("") == pytest.approx(1.2)
+        assert _pause("x" * 200) == pytest.approx(2.2)
+        assert _pause("x" * 5000) == pytest.approx(4.0)
+        settings.COPILOT_LATENCY_SCALE = 0.0
+        assert _pause("x" * 200) == 0.0
+    finally:
+        settings.COPILOT_LATENCY_SCALE = 1.0
+
+
+async def test_follow_ups_depend_on_the_answer(client):
+    seen = {}
+    for intent in ("saving_plan", "top_appliance", "month_compare", "standby", "fridge_cycles"):
+        a = (await call(client, "POST", "copilot/ask", params={"asof": NOW},
+                        json={"intent": intent})).json()
+        ups = a["follow_ups"]
+        assert 1 <= len(ups) <= 3 and intent not in [u["intent"] for u in ups]
+        seen[intent] = tuple(u["intent"] for u in ups)
+    assert len(set(seen.values())) == len(seen), seen  # each answer leads somewhere different
+    # the biggest consumer's own question comes first after "which appliance costs most"
+    assert seen["top_appliance"][0] == "ac_runtime"
+
+
+async def test_unknown_question_still_offers_a_way_forward(client):
+    a = (await call(client, "POST", "copilot/ask", json={"question": "Mai co mua khong?"})).json()
+    assert a["intent"] == "unknown" and len(a["follow_ups"]) == 3

@@ -1,4 +1,4 @@
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import { type QueryClient, queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 
 import { apiClient } from '@/lib/api-client';
 
@@ -312,6 +312,8 @@ export interface CopilotAnswer {
   text: string;
   facts: { label: string; value: string }[];
   action: { kind: 'experiment'; appliance: ExperimentAppliance; label: string } | null;
+  /** Câu nên hỏi tiếp sau câu trả lời này (tối đa 3, chọn theo nội dung câu trả lời). */
+  follow_ups: CopilotSuggestion[];
 }
 
 export const suggestionsQueryOptions = () =>
@@ -440,4 +442,23 @@ export const experimentProposalsQueryOptions = () =>
 
 export function useExperimentProposals() {
   return useSuspenseQuery(experimentProposalsQueryOptions());
+}
+
+/**
+ * Nạp trước dữ liệu của các tab chưa mở (Tiêu thụ, Trợ lý AI, Thử nghiệm, Tài khoản) khi Trang chủ
+ * đã xong, lần lượt từng cái để không chen với việc hiển thị. Mở tab nào cũng có số ngay.
+ */
+export async function prefetchAppData(client: QueryClient) {
+  const jobs = [
+    usageQueryOptions('week', 0),
+    usageQueryOptions('month', 0),
+    householdQueryOptions(),
+    billingQueryOptions('household'),
+    suggestionsQueryOptions(),
+    experimentProposalsQueryOptions(),
+    experimentTemplatesQueryOptions(),
+  ];
+  for (const job of jobs) {
+    await client.prefetchQuery(job as Parameters<QueryClient['prefetchQuery']>[0]);
+  }
 }

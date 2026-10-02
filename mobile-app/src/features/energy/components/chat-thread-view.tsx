@@ -95,6 +95,7 @@ export function ChatThreadView({
             <ChatSuggestionChips
               onPick={onPickSuggestion}
               asked={thread.messages.filter((m) => m.who === 'me').map((m) => m.text)}
+              items={[...thread.messages].reverse().find((m) => m.who === 'ai' && !m.state)?.followUps}
             />
           </View>
         )}

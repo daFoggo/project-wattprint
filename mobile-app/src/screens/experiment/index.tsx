@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ChevronRight, Plus } from 'lucide-react-native';
@@ -7,7 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { QueryBoundary } from '@/components/common/query-boundary';
 import { Fonts, WattPrintTokens } from '@/constants/theme';
 import { ExperimentLogRow } from '@/features/energy/components/experiment-log-row';
-import type { ConfigMode } from '@/features/energy/components/create-experiment-sheet';
+import { CreateExperimentSheet, type ConfigMode } from '@/features/energy/components/create-experiment-sheet';
+import { ExperimentDetailModal } from '@/features/energy/components/experiment-detail-modal';
+import { ExperimentHistorySheet } from '@/features/energy/components/experiment-history-sheet';
 import { ExperimentProposalList } from '@/features/energy/components/experiment-proposal-card';
 import {
   ExperimentProposalListSkeleton,
@@ -17,15 +19,6 @@ import { ExperimentRunningCard } from '@/features/energy/components/experiment-s
 import { useEnergyStore } from '@/features/energy/use-energy-store';
 
 // Các tờ chỉ cần khi người dùng mở: nạp module theo nhu cầu.
-const CreateExperimentSheet = lazy(() =>
-  import('@/features/energy/components/create-experiment-sheet').then((m) => ({ default: m.CreateExperimentSheet }))
-);
-const ExperimentDetailModal = lazy(() =>
-  import('@/features/energy/components/experiment-detail-modal').then((m) => ({ default: m.ExperimentDetailModal }))
-);
-const ExperimentHistorySheet = lazy(() =>
-  import('@/features/energy/components/experiment-history-sheet').then((m) => ({ default: m.ExperimentHistorySheet }))
-);
 
 function tap(style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) {
   try {
@@ -133,7 +126,6 @@ export function ExperimentScreen() {
         </View>
       </ScrollView>
 
-      <Suspense fallback={null}>
         <CreateExperimentSheet
           visible={sheetMode !== null}
           mode={sheetMode ?? { proposal: null, preset: null }}
@@ -147,7 +139,6 @@ export function ExperimentScreen() {
           onEnd={endExperiment}
         />
         <ExperimentHistorySheet visible={isHistoryOpen} logs={logs} onClose={() => setIsHistoryOpen(false)} />
-      </Suspense>
     </SafeAreaView>
   );
 }

@@ -2337,7 +2337,7 @@
           "demo-copilot"
         ],
         "summary": "Answer a question from the household's data",
-        "description": "Give an `intent` (a suggestion) or a free-text `question`, matched to an intent by keywords. The text is built from the figures in `facts`, which come from the same queries as the usage, billing and insights endpoints. A question the copilot cannot answer from the data gets `intent: unknown` and a list of what can be asked. There is no language model and no weather.",
+        "description": "Give an `intent` (a suggestion) or a free-text `question`, matched to an intent by keywords. The text is built from the figures in `facts`, which come from the same queries as the usage, billing and insights endpoints. A question the copilot cannot answer from the data gets `intent: unknown` and a list of what can be asked. There is no language model and no weather. Replies are held back about one to four seconds (`COPILOT_LATENCY_SCALE`), so the chat feels like one.",
         "operationId": "askDemoCopilot",
         "parameters": [
           {
@@ -3055,6 +3055,14 @@
                 "type": "null"
               }
             ]
+          },
+          "follow_ups": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Follow Ups",
+            "description": "What to ask next, chosen from this answer: up to 3, never the question just answered"
           }
         },
         "type": "object",

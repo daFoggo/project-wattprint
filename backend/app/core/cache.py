@@ -5,6 +5,7 @@ function of the URL (or, for the copilot, the request body), so repeating a requ
 work. Importing data (`POST /households/import`) calls `clear()`. Bounded, oldest out first.
 """
 from collections import OrderedDict
+from datetime import UTC, datetime
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -31,6 +32,20 @@ def memo_set(key: str, value) -> None:
         _memo.popitem(last=False)
 
 
+def _canon(value: str) -> str:
+    """`...T23:59:00Z` and `...T23:59:00.000Z` are the same instant: one cache entry."""
+    try:
+        at = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    return at.astimezone(UTC).isoformat() if at.tzinfo else value
+
+
+def key_of(path: str, query_items: list[tuple[str, str]]) -> str:
+    """Path plus the query with its parameters sorted and its instants normalised."""
+    return path + "?" + "&".join(f"{k}={_canon(v)}" for k, v in sorted(query_items))
+
+
 class DemoCacheMiddleware(BaseHTTPMiddleware):
     """Caches successful GETs under `<prefix>/demo/`; marks them with `X-Cache`."""
 
@@ -41,7 +56,7 @@ class DemoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method != "GET" or not request.url.path.startswith(self.prefix):
             return await call_next(request)
-        key = f"{request.url.path}?{request.url.query}"
+        key = key_of(request.url.path, request.query_params.multi_items())
         hit = _store.get(key)
         if hit is not None:
             _store.move_to_end(key)

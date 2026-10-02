@@ -413,12 +413,13 @@ async def month_compare(ctx: Ctx) -> s.Answer:
 
 
 async def unknown(ctx: Ctx, question: str) -> s.Answer:
-    return s.Answer(
+    res = s.Answer(
         household_id=ctx.hid, asof=ctx.asof, intent="unknown", question=question,
         category="CHUNG", period="",
         text="Tôi chỉ trả lời được những câu hỏi tính từ số liệu điện của nhà bạn: tiền điện và "
              "bậc giá, dự báo cuối tháng, thiết bị tốn điện nhất, điều hoà, bình nóng lạnh, tủ "
              "lạnh và tải chạy nền. Bạn thử chọn một câu gợi ý bên dưới nhé.", facts=[])
+    return res.model_copy(update={"follow_ups": follow_ups(res, ctx.plan)})
 
 
 INTENTS = {
@@ -450,6 +451,38 @@ def suggestions(plan: Plan) -> list[s.Suggestion]:
             question = "Làm sao để giảm tiền điện giờ cao điểm?"
         out.append(s.Suggestion(intent=intent, question=question, category=category))
     return out
+
+
+# What is worth asking after each answer. The first entries are the natural next step; the answer's
+# own subject (`device` below) comes first when the answer names a particular appliance.
+FOLLOW = {
+    "bill_change": ["{device}", "saving_plan", "tier_budget", "month_compare"],
+    "tier_budget": ["saving_plan", "forecast", "ac_runtime", "heater_timing"],
+    "standby": ["saving_plan", "top_appliance", "forecast"],
+    "top_appliance": ["{device}", "saving_plan", "standby", "bill_change"],
+    "ac_runtime": ["saving_plan", "bill_change", "top_appliance", "forecast"],
+    "heater_timing": ["saving_plan", "standby", "top_appliance", "bill_change"],
+    "fridge_cycles": ["standby", "top_appliance", "forecast", "saving_plan"],
+    "forecast": ["tier_budget", "saving_plan", "month_compare", "bill_change"],
+    "saving_plan": ["ac_runtime", "heater_timing", "tier_budget", "forecast"],
+    "month_compare": ["bill_change", "top_appliance", "forecast", "saving_plan"],
+}
+DEVICE_INTENT = {"AC": "ac_runtime", "WaterHeater": "heater_timing"}
+
+
+def follow_ups(res: s.Answer, plan: Plan) -> list[s.Suggestion]:
+    """Up to 3 next questions for `res`: related to what it said, never the one just answered."""
+    by_intent = {x.intent: x for x in suggestions(plan)}
+    plan_order = FOLLOW.get(res.intent) or [x.intent for x in suggestions(plan)]
+    device = DEVICE_INTENT.get(res.action.appliance) if res.action else None
+    out: list[s.Suggestion] = []
+    for intent in plan_order:
+        intent = device if intent == "{device}" else intent
+        if not intent or intent == res.intent or intent not in by_intent:
+            continue
+        if by_intent[intent] not in out:
+            out.append(by_intent[intent])
+    return out[:3]
 
 
 # ---------------------------------------------------------------------------- free text
@@ -485,10 +518,11 @@ def classify(question: str) -> str:
 
 async def answer(ctx: Ctx, question: str | None, intent: str | None) -> s.Answer:
     if intent and intent != "unknown":
-        return await INTENTS[intent](ctx)
+        res = await INTENTS[intent](ctx)
+        return res.model_copy(update={"follow_ups": follow_ups(res, ctx.plan)})
     question = (question or "").strip()
     found = classify(question) if question else "unknown"
     if found == "unknown":
         return await unknown(ctx, question)
     res = await INTENTS[found](ctx)
-    return res.model_copy(update={"question": question})
+    return res.model_copy(update={"question": question, "follow_ups": follow_ups(res, ctx.plan)})
